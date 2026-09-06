@@ -19,8 +19,10 @@ import (
 // The cost is stated rather than hidden: there is no graceful phase on
 // Windows. A process gets TerminateProcess with no chance to flush, close or
 // release a port, and no amount of grace changes that — see
-// GracefulStopSupported, which a caller can read instead of guessing.
+// SignalsSupported, which a caller can read instead of guessing.
 func deliver(p *os.Process, _ syscall.Signal) error { return p.Kill() }
 
-// GracefulStopSupported is false: Windows terminates, it does not ask.
-const GracefulStopSupported = false
+// SignalsSupported is false: Windows terminates, it does not ask. Stop's
+// grace period buys nothing here, and Result.Signalled is never true — a
+// terminated process reports an exit code like any other.
+const SignalsSupported = false

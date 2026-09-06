@@ -123,10 +123,18 @@ func (p *Process) PID() int {
 // Signal sends sig to the process.
 //
 // On a platform without signals the process is terminated instead; see
-// deliver, and GracefulStopSupported, which says whether the polite phase of
+// deliver, and SignalsSupported, which says whether the polite phase of
 // Stop means anything here.
 func (p *Process) Signal(sig syscall.Signal) error {
 	if p.cmd.Process == nil {
+		return nil
+	}
+	// Already reaped: there is nothing to signal, and the platforms disagree
+	// loudly about how to say so. Unix returns ESRCH, handled below; Windows
+	// returns "invalid argument" or "TerminateProcess: Access is denied",
+	// which look like real failures and turned the ordinary shape — Wait, then
+	// a deferred Stop — into a reported error for doing nothing.
+	if p.cmd.ProcessState != nil {
 		return nil
 	}
 	if err := deliver(p.cmd.Process, sig); err != nil {

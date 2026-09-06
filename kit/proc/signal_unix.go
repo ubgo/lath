@@ -14,10 +14,16 @@ import (
 // its port; SIGKILL is the fallback for one that ignores it.
 func deliver(p *os.Process, sig syscall.Signal) error { return p.Signal(sig) }
 
-// GracefulStopSupported reports whether asking a process to exit — as opposed
-// to killing it — means anything on this platform.
+// SignalsSupported reports whether this platform has signals at all.
 //
-// Exported so a CALLER can adjust rather than guess. A supervisor that gives a
+// Two things follow from it, which is why it is one constant rather than
+// several. Stop's polite phase — SIGTERM, then SIGKILL after grace — is real
+// only where this is true; elsewhere the first call already terminated the
+// process and grace buys nothing. And Result.Signalled can only ever be true
+// where this is, because a platform without signals reports an exit code
+// instead.
+//
+// Exported so a caller can adjust rather than guess: a supervisor that gives a
 // process thirty seconds to drain connections is doing something useful here
-// and nothing at all where the first signal already terminated it.
-const GracefulStopSupported = true
+// and nothing at all where it is false.
+const SignalsSupported = true
