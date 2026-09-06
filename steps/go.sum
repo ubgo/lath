@@ -1,0 +1,4 @@
+github.com/ubgo/lath/kit v0.1.0 h1:HVQNwIhc4Vj7J47puUps4Llbi8yI0LQgYl9X4kuvHBY=
+github.com/ubgo/lath/kit v0.1.0/go.mod h1:NQL2t/nVVt+f38jWSjNjYg8Clm/5w7JJjkrvJX1CX2o=
+github.com/ubgo/lath/pipeline v0.1.0 h1:OgoVRON4iI8CzINojcBaqQfnpktcZoK6KdHqPH8N1dU=
+github.com/ubgo/lath/pipeline v0.1.0/go.mod h1:9ZWL3+ISYKsqOtvyy/dSM94Hn+oRFYLsc5/TqGZ/T0E=

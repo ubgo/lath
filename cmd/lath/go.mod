@@ -11,12 +11,12 @@ go 1.24
 // never grows a dependency to be debuggable; the cost lands here, on the
 // binary the user installs, instead.
 require (
-	github.com/ubgo/lath/kit v0.0.0
-	github.com/ubgo/lath/pipeline v0.0.0
+	github.com/ubgo/lath/kit v0.1.0
+	github.com/ubgo/lath/pipeline v0.1.0
 )
 
-// Unpublished during development. A release replaces these with version
-// requirements; the workspace makes them a no-op for local builds.
-replace github.com/ubgo/lath/kit => ../../kit
-
-replace github.com/ubgo/lath/pipeline => ../../pipeline
+// No replace directives, deliberately, and this module is the reason the rule
+// matters most: Go refuses to `go install` a module whose go.mod carries one,
+// so a replace here made `go install github.com/ubgo/lath/cmd/lath@latest`
+// fail outright — the tool was public and uninstallable. go.work points these
+// at the local checkout for development, which is what a workspace is for.
