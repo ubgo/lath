@@ -89,7 +89,7 @@ Last measured on 2026-09-06, running the full gate on each:
 | macOS · arm64 | `task check` on the host | ✅ pass | 88.2% |
 | Linux · arm64 | `task test:linux` (Docker, native) | ✅ pass | 88.3% |
 | Linux · amd64 | `task test:linux PLATFORM=linux/amd64` (QEMU) | ✅ pass | 88.2% |
-| Windows | `crosscheck` only — builds and vets, nothing runs | ⚠️ **unsupported** | — |
+| Windows | `gh workflow run windows.yml` | ⚠️ **unsupported** — 25 of 33 packages pass, see below | — |
 
 Linux measures marginally higher because the container runs as a non-root user, so the permission tests that skip elsewhere actually execute. The amd64 figure matches macOS for the same reason in reverse — see the note on platform variance above.
 
@@ -97,7 +97,7 @@ Linux measures marginally higher because the container runs as a non-root user, 
 |---|---|---|---|
 | Linux | ✅ full gate in CI, and locally via `task test:linux` | ✅ | ✅ |
 | macOS | ✅ full gate in CI | ✅ | ✅ |
-| Windows | ❌ **not yet** | ✅ every commit, via `crosscheck` | ❌ never |
+| Windows | ❌ **not yet** — one real bug, one documented limitation, and a set of POSIX-only test assumptions | ✅ every commit, via `crosscheck` | ⚠️ on demand, 25 of 33 packages pass |
 
 **Compiling is not support.** `crosscheck` keeps Windows building so the `!unix` fallbacks do not rot, and that is all it claims. What is already known to differ there: the runner cannot replace its own process image, so it spawns a child and forwards the exit code instead of `exec`; terminal detection is a stub that always answers yes, which affects `--debug`; `proc.Find` needs `pgrep` and reports `ErrUnsupported`; `kit/lock` falls back to `StaleAfter` because it cannot verify liveness.
 
@@ -116,7 +116,27 @@ gh run watch
 
 Manually dispatched, never on push — because a red badge for a platform nobody claims to support teaches people to ignore red badges. Not for cost: GitHub-hosted standard runners are free and unmetered on public repositories.
 
-**Expect it to fail the first time**, and treat the output as the to-do list rather than a regression. Known differences going in: the runner spawns a child instead of replacing its process image; terminal detection is a stub that always answers yes; `proc.Find` needs `pgrep`; `kit/lock` cannot verify liveness. Tests that shell out to `docker`, `ssh` or a POSIX shell will skip or fail, and deciding *which of those should skip and which should be made to work* is the actual question the workflow exists to answer.
+#### What it found, first real run (2026-09-06)
+
+**25 of 33 packages pass**, including every network and API package, the whole `pipeline` and `steps` layer, and the example definition end to end. Windows is considerably closer to working than "unsupported" suggests.
+
+| Failing package | Why |
+|---|---|
+| `kit/fsx`, `kit/archive`, `kit/hashtree`, `kit/lock` | **Test assumptions.** They assert that a file with mode `0000` cannot be read and a directory with no write bit cannot be written. Windows does not honour POSIX mode bits that way, so the operation *succeeds* and the test reports a failure that is not one. |
+| `cmd/lath` (cache, manifest) | Same cause, plus two path-shape assertions that hardcode forward slashes. |
+| `cmd/lath` (`TestBuildCompilesADefinition`) | **A real bug.** `cacheEntryPath` builds the compiled definition with no `.exe` suffix, so the runner cannot exec what it just built: *executable file not found in %PATH%*. |
+| `cmd/lath` (`isTerminal`) | **A known limitation, behaving as documented.** The `!unix` stub always answers "yes", so tests asserting that a pipe is not a terminal fail. The stub is deliberate — see `tty_other.go` — but it means `--debug` cannot refuse a session it should. |
+| `kit/proc`, `kit/scan`, `kit/session` | `pgrep`/`ps` are absent, and the session tests assume POSIX paths. |
+
+So the work to support Windows is smaller than it looks and splits cleanly: **one product bug** (the `.exe` suffix), **one product limitation** (terminal detection), and a pile of tests that need to state *"this asserts POSIX permission semantics"* and skip where those do not exist — the same shape as the `pid 1` fix the Linux container forced.
+
+None of it is scheduled. It is written down so the next person to want Windows starts from a list rather than from a green tick that meant nothing.
+
+#### The first run of this workflow tested nothing
+
+Worth recording, because the failure mode is general. It ran `go test ./...` from the repository root, which fails with *"directory prefix . does not contain modules listed in go.work"* — the root is a workspace root, not a module, which this repository documents in two places and which the workflow walked straight into. `continue-on-error` then turned that setup failure into a **green job**.
+
+Two lessons, both now built in: the module-path pattern is used everywhere, and the workflow writes each suite's real `outcome` into the job summary, because `continue-on-error` makes a step's *conclusion* success no matter what happened, and a result that has to be dug out of the logs is a result nobody reads.
 
 When it passes consistently, Windows earns a place in the main CI matrix and a line in the README — in that order. A badge is a claim, and the gate is what makes a claim true.
 
