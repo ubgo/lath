@@ -44,18 +44,46 @@ jobs:
       # tests, and nothing else.
       #
       # continue-on-error because the answer is expected to be "not yet": a
-      # failed step here should produce a readable list of what broke, not a
-      # cancelled run that stops at the first package.
+      # failed step should produce a readable list of what broke, not a
+      # cancelled run that stops at the first package. The summary step below
+      # is what keeps that honest — see the comment there.
+      #
+      # The MODULE-PATH pattern, never "./...": the repository root is a
+      # workspace root and not a module, so a relative pattern fails with
+      # "directory prefix . does not contain modules listed in go.work". The
+      # first version of this workflow used "./..." and reported a green job
+      # having run zero tests.
       - name: Test
+        id: test
         continue-on-error: true
-        run: go test ./...
-        working-directory: .
+        run: go test github.com/ubgo/lath/...
         shell: pwsh
 
+      # Separate because it is a separate module, deliberately outside the
+      # workspace, which the pattern above therefore cannot reach.
       - name: Test the definition module
+        id: definition
         continue-on-error: true
         run: go test ./...
         working-directory: example/.lath
         env:
           GOWORK: off
         shell: pwsh
+
+      # continue-on-error makes a step's CONCLUSION success even when it
+      # failed, so the job's green tick says nothing about what happened. This
+      # writes the real outcomes where a reader will see them, because a run
+      # whose result has to be dug out of the logs is a run people stop
+      # reading.
+      - name: Summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## Windows: unsupported, tested anyway" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "| Suite | Outcome |" >> $env:GITHUB_STEP_SUMMARY
+          "|---|---|" >> $env:GITHUB_STEP_SUMMARY
+          "| kit, pipeline, steps, cmd/lath | ${{ steps.test.outcome }} |" >> $env:GITHUB_STEP_SUMMARY
+          "| example definition | ${{ steps.definition.outcome }} |" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "A failure here is not a regression: Windows is not a supported platform. It is the to-do list for making it one. See docs/TESTING.md." >> $env:GITHUB_STEP_SUMMARY
