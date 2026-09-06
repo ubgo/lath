@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ubgo/lath/kit/fsx"
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 )
 
 // TestCopyFileOntoItself pins the check that stands between a path bug and
@@ -419,9 +420,7 @@ func TestExistsDistinguishesMissingFromUnreadable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix permission bits")
 	}
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores permission bits")
-	}
+	fsprobe.NeedsEnforcedDirectoryPermissions(t)
 	dir := t.TempDir()
 	locked := filepath.Join(dir, "locked")
 	if err := os.Mkdir(locked, 0o755); err != nil {
@@ -460,9 +459,7 @@ func TestCopyFileUnreadableSource(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix permission bits")
 	}
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores permission bits")
-	}
+	fsprobe.NeedsEnforcedPermissions(t)
 	dir := t.TempDir()
 	src := filepath.Join(dir, "unreadable")
 	dst := filepath.Join(dir, "copy")

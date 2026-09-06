@@ -16,6 +16,10 @@ import (
 // well-known source of orphaned work.
 //
 // Invariant: on success this never returns.
+// binarySuffix is what an executable file is called on this platform. Empty
+// on unix; see exec_other.go for the other half.
+const binarySuffix = ""
+
 func handOff(binPath string, args []string) error {
 	argv := append([]string{binPath}, args...)
 	env, err := definitionEnv()

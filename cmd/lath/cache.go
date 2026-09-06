@@ -114,8 +114,12 @@ func sanitiseCacheName(s string) string {
 // which is what allows the readable prefix to be decorative: renaming a
 // repository changes the name a future entry would get, but does not orphan
 // the entry already cached under the old one.
+//
+// binarySuffix is part of the pattern, not decoration: on Windows an entry is
+// written as <name>-<hash>.exe, and a glob ending at the hash would match
+// nothing, silently recompiling the definition on every single run.
 func cacheLookup(hash string) string {
-	matches, err := filepath.Glob(filepath.Join(cacheDir(), "*"+cacheNameSeparator+hash))
+	matches, err := filepath.Glob(filepath.Join(cacheDir(), "*"+cacheNameSeparator+hash+binarySuffix))
 	if err != nil || len(matches) == 0 {
 		return ""
 	}
@@ -127,7 +131,7 @@ func cacheLookup(hash string) string {
 
 // cacheEntryPath returns where a NEW entry for d would be written.
 func cacheEntryPath(d definition) string {
-	return filepath.Join(cacheDir(), cacheName(d.Dir)+cacheNameSeparator+d.Hash)
+	return filepath.Join(cacheDir(), cacheName(d.Dir)+cacheNameSeparator+d.Hash+binarySuffix)
 }
 
 // writeManifest records what a cache entry is, beside the entry itself.

@@ -76,7 +76,9 @@ def api(module: str) -> dict[str, list[str]]:
     packages = [""] if module == "pipeline" else []
     packages += sorted(
         d for d in os.listdir(base)
-        if os.path.isdir(os.path.join(base, d)) and not d.startswith(".")
+        # internal/ is unimportable from outside the module, so it has no
+        # reference page and no signatures anyone can call.
+        if os.path.isdir(os.path.join(base, d)) and not d.startswith(".") and d != "internal"
     )
 
     found: dict[str, list[str]] = {}

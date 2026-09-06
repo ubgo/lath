@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 	"github.com/ubgo/lath/kit/lock"
 	"github.com/ubgo/lath/kit/session"
 )
@@ -234,9 +235,7 @@ func TestCloseOnNothingIsNothing(t *testing.T) {
 // enforced, continuing would advertise a channel other users on the machine
 // can reach. A refusal is the only safe answer, and it must name the path.
 func TestAdvertiseRefusesADirectoryItCannotSecure(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root chmods anything")
-	}
+	fsprobe.NeedsEnforcedDirectoryPermissions(t)
 	// A path whose PARENT is unwritable: MkdirAll cannot create it, which is
 	// the same class of failure as being unable to secure it and the one that
 	// can be provoked portably.
@@ -260,9 +259,7 @@ func TestAdvertiseRefusesADirectoryItCannotSecure(t *testing.T) {
 // here would say "no sessions are running", which is a different and wrong
 // answer from "the session directory cannot be read".
 func TestListRefusesAnUnusableDirectory(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root reads anything")
-	}
+	fsprobe.NeedsEnforcedDirectoryPermissions(t)
 	parent := t.TempDir()
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)

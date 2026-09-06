@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 	"github.com/ubgo/lath/kit/lock"
 )
 
@@ -499,9 +500,7 @@ func TestStaleAfterDoesNotReclaimAFreshLock(t *testing.T) {
 // permission failure from somewhere deeper.
 func TestAcquireReportsADirectoryItCannotCreate(t *testing.T) {
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root writes anywhere")
-	}
+	fsprobe.NeedsEnforcedDirectoryPermissions(t)
 	parent := t.TempDir()
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)

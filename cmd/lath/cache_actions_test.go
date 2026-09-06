@@ -201,9 +201,7 @@ func TestReportDiscoveryError(t *testing.T) {
 // permissions rather than the file's, and per-file immutability needs flags
 // that do not exist everywhere.
 func TestASweepReportsEveryEntryItCannotRemove(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root deletes anything")
-	}
+	needsEnforcedDirectoryPermissions(t)
 	const entries = 3
 	dir := seedCache(t, entries, entries)
 	if err := os.Chmod(dir, 0o500); err != nil {
@@ -248,9 +246,7 @@ func TestAnEntryWithNoManifestIsStillRemoved(t *testing.T) {
 // it built produces a cache entry nothing can identify later, which `cache
 // list` then shows as an unattributable binary.
 func TestWriteManifestReportsAnUnwritableCache(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root writes anywhere")
-	}
+	needsEnforcedDirectoryPermissions(t)
 	dir := t.TempDir()
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatal(err)

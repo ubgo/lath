@@ -41,13 +41,24 @@ SCOPED_DOCS = ("docs/kit", "docs/steps", "docs/pipeline")
 KIT_COUNT = re.compile(r"^(\d+) packages that any Go program", re.M)
 
 
+def is_public(name: str) -> bool:
+    """Whether a directory is a package this kit offers to callers.
+
+    `internal/` is not: Go itself forbids importing it from outside this
+    module, so there is no reader for a reference page and nothing to
+    document. Excluded from BOTH the package count and the symbol scan, or the
+    docs gate would demand documentation for something nobody can call.
+    """
+    return not name.startswith(".") and name != "internal"
+
+
 def kit_count_is_honest() -> list[str]:
     """The count the kit index claims, against the packages that exist."""
     index = os.path.join(ROOT, "docs", "kit", "README.md")
     kit = os.path.join(ROOT, "kit")
     actual = len([
         d for d in os.listdir(kit)
-        if os.path.isdir(os.path.join(kit, d)) and not d.startswith(".")
+        if os.path.isdir(os.path.join(kit, d)) and is_public(d)
     ])
     with open(index) as f:
         match = KIT_COUNT.search(f.read())
