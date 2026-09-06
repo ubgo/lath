@@ -1,0 +1,24 @@
+# lath
+
+> Type-safe, Go-defined deploy pipelines. A runner that discovers the exported functions of a repository's deploy definition, compiles it, and executes it — identically on a laptop against local Docker, over ssh, or in CI.
+
+lath replaces CI YAML with embedded shell. A deploy definition is a Go program in a `.lath/` directory: exported functions are the commands, pipelines are values, and steps declare what state they read and write so a mis-wired pipeline fails validation before anything runs. The same definition runs locally and remotely — the only difference is which `Runner` a step is given, which is what makes a full rehearsal against local Docker possible.
+
+The project is three importable Go modules plus the runner. `kit` is a library any Go program can use with no dependency on lath at all; `pipeline` is the Step contract; `steps` are the adapters that join them.
+
+## Docs
+
+- [README](https://github.com/ubgo/lath/blob/main/README.md): what it is, why it exists, the command model, and how it compares to Kamal and CI YAML
+- [Architecture](https://github.com/ubgo/lath/blob/main/docs/ARCHITECTURE.md): how the runner, the compile cache and the definition module fit together
+- [kit reference](https://github.com/ubgo/lath/blob/main/docs/kit/README.md): every library package — docker, ssh, git, github, brew, checksum, archive, cloudflare, caddy, certs, secret, supervise, and more
+- [steps reference](https://github.com/ubgo/lath/blob/main/docs/steps/README.md): the pipeline adapters, the state keys they exchange, and the recipes
+- [pipeline reference](https://github.com/ubgo/lath/blob/main/docs/pipeline/README.md): the Step contract, State, validation, dry run and plan mode
+- [Debugger](https://github.com/ubgo/lath/blob/main/docs/DEBUGGER.md): pausing, inspecting and replaying individual steps of a real run
+- [CONTRIBUTING](https://github.com/ubgo/lath/blob/main/CONTRIBUTING.md): the placement rule, the gates, and the standards
+- [CLAUDE.md](https://github.com/ubgo/lath/blob/main/CLAUDE.md): the design reasoning — why there is no rollback verb, why steps are named for mechanisms, what belongs in a project rather than in the engine
+
+## Optional
+
+- [Definition isolation](https://github.com/ubgo/lath/blob/main/docs/DEFINITION-ISOLATION.md): why the definition is a nested module outside the workspace
+- [Namespaces](https://github.com/ubgo/lath/blob/main/docs/NAMESPACES.md): grouping targets across several definition files
+- [Primitives](https://github.com/ubgo/lath/blob/main/docs/PRIMITIVES.md): designs that were considered, and why some were rejected

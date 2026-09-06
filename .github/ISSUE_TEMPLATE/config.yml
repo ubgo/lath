@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ubgo/lath/security/policy
+    about: Do not open a public issue. A deploy tool holds credentials — email the address in SECURITY.md.
+  - name: How does this work?
+    url: https://github.com/ubgo/lath/tree/main/docs
+    about: The reference docs cover every package, every step, and the pipeline contract.

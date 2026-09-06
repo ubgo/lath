@@ -1,0 +1,56 @@
+{
+  "$comment": "The single source of truth for this repo's identity. Every launch phase (README, OSS scaffold, GitHub metadata) reads THIS file rather than re-deciding, so the name, pitch, license and topics say the same thing everywhere. Visual identity is deliberately absent: this project ships no logo, and an empty brand block is the honest record of that decision rather than an oversight.",
+  "name": "lath",
+  "tagline": "Type-safe, Go-defined deploy pipelines.",
+  "description": "A task runner whose definitions are typed Go: exported functions are the commands, pipelines are values, and a deploy runs identically on a laptop, over ssh, and in CI.",
+  "repo": "ubgo/lath",
+  "homepage": "",
+  "language": "go",
+  "kind": "cli",
+  "license": "MIT",
+  "author": {
+    "name": "Aman Bansal",
+    "email": "khanakia@gmail.com",
+    "github": "khanakia"
+  },
+  "brand": {
+    "$comment": "No logo, wordmark or icon by decision. color is kept only because shields.io badges need a hex, and a badge palette is not a visual identity.",
+    "color": "slate",
+    "hex": "334155"
+  },
+  "topics": [
+    "golang",
+    "go",
+    "deployment",
+    "deploy",
+    "devops",
+    "cli",
+    "task-runner",
+    "pipeline",
+    "docker",
+    "ssh",
+    "ci-cd",
+    "infrastructure-as-code",
+    "developer-tools",
+    "release-automation",
+    "tui"
+  ],
+  "positioning": {
+    "category": "deploy tooling / task runner",
+    "audience": "Go teams deploying containerised services to their own servers, who write the deploy in CI YAML today",
+    "wedge": "A deploy you cannot run on your laptop is a deploy you debug in production. lath makes the definition a Go program, so the same pipeline runs locally against Docker, over ssh, or in CI with nothing swapped but a Runner.",
+    "alternatives": [
+      "CI YAML with embedded shell (GitHub Actions, GitLab CI)",
+      "Kamal",
+      "Ansible / shell scripts",
+      "Make / Taskfile wrappers"
+    ],
+    "differentiators": [
+      "The definition is typed Go: a step reading state nothing produces fails validation before anything runs, not three minutes into a deploy",
+      "plan and dry-run describe or rehearse the whole pipeline without side effects",
+      "A step debugger pauses, inspects and replays individual steps of a real run",
+      "Local and remote differ by one field, the Runner, so a rehearsal exercises the real code path",
+      "Primitives are a plain Go library any program can import, with no framework dependency"
+    ]
+  }
+}

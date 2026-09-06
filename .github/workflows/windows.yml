@@ -1,0 +1,61 @@
+# Windows, on demand.
+#
+# Not part of `check`, and deliberately not on push. Windows is NOT a supported
+# platform: it compiles, and `crosscheck` inside the gate proves that on every
+# run, but nothing has been run or tested there. This workflow is how that
+# changes — run it, read what breaks, fix what is worth fixing, and when it
+# passes consistently it earns a place in the main matrix and a line in the
+# README.
+#
+# Manual for one reason only: a red badge for a platform nobody claims to
+# support teaches people to ignore red badges. Cost is not the reason —
+# GitHub-hosted standard runners are free and unmetered on public
+# repositories, windows included.
+#
+# Expect failures the first time. Known differences going in: the runner
+# spawns a child instead of replacing its process image, terminal detection is
+# a stub that always answers yes, proc.Find needs pgrep and reports
+# ErrUnsupported, and kit/lock cannot verify liveness so it falls back to
+# StaleAfter. Tests that shell out to docker, ssh or a POSIX shell will skip or
+# fail; whether they should skip or be made to work is the actual question
+# this workflow exists to answer.
+name: windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kit/go.mod
+          cache-dependency-path: "**/go.sum"
+
+      # Not `task check`: that runs the documentation gates, the race detector
+      # and a three-OS cross-build, none of which say anything new here. The
+      # question is narrower — does the code RUN on Windows — so this is the
+      # tests, and nothing else.
+      #
+      # continue-on-error because the answer is expected to be "not yet": a
+      # failed step here should produce a readable list of what broke, not a
+      # cancelled run that stops at the first package.
+      - name: Test
+        continue-on-error: true
+        run: go test ./...
+        working-directory: .
+        shell: pwsh
+
+      - name: Test the definition module
+        continue-on-error: true
+        run: go test ./...
+        working-directory: example/.lath
+        env:
+          GOWORK: off
+        shell: pwsh

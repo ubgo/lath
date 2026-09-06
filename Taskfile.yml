@@ -1,0 +1,275 @@
+# https://taskfile.dev
+version: "3"
+
+vars:
+  BIN: '{{.TASKFILE_DIR}}/bin/lath'
+
+  # Resolved via `go env GOPATH` rather than the GOPATH environment variable:
+  # Go COMPUTES that value and does not export it, so a template `env "GOPATH"`
+  # is empty and would silently resolve the install path to "/bin".
+  INSTALL_DIR:
+    sh: echo "${INSTALL_DIR:-$(go env GOPATH)/bin}"
+
+  # A MODULE-PATH pattern, not "./...". The repository root is a workspace root
+  # and NOT itself a module, so a relative pattern fails with "directory prefix
+  # . does not contain modules listed in go.work". Matching by module path
+  # covers every workspace member wherever it sits on disk.
+  PKGS: github.com/ubgo/lath/...
+
+  # The definition module is outside the workspace by design, so PKGS above
+  # cannot reach it and every command touching it must disable workspace mode.
+  DEF_DIR: example/.lath
+
+tasks:
+  default:
+    desc: build, vet and test everything
+    cmds:
+      - task: check
+
+  build:
+    desc: "build the runner as a DEVELOPMENT binary (engine resolved from this checkout)"
+    cmds:
+      # -X main.devEnginePath bakes this checkout in, so `lath init` scaffolds
+      # definitions that resolve the engine through replace directives pointing
+      # here. A RELEASE build must not set it — see the `build:release` task —
+      # or every definition a user scaffolds would carry absolute paths from
+      # the machine that built the binary.
+      - go build -ldflags "-X main.devEnginePath={{.TASKFILE_DIR}}" -o {{.BIN}} github.com/ubgo/lath/cmd/lath
+
+  build:release:
+    desc: "build the runner as a RELEASE binary (engine resolved from the module proxy)"
+    cmds:
+      # devEnginePath deliberately unset: a released binary has no business
+      # knowing about anyone's local checkout.
+      - go build -ldflags "-X main.version=${VERSION:-dev}" -o {{.BIN}} github.com/ubgo/lath/cmd/lath
+
+  check:
+    desc: "the gate — fmt, vet, race tests, across BOTH module sets"
+    cmds:
+      - task: fmt:check
+      - go vet {{.PKGS}}
+      - go test -race {{.PKGS}}
+      # The definition module is not a workspace member, so PKGS misses it.
+      # A gate that silently skips a module is worse than no gate.
+      #
+      # vet and test, never build: a definition is package main with no func
+      # main — lath generates the entry point at build time — so `go build`
+      # cannot link it. A missing main is a link-time fault, not a type error,
+      # which is why vet and test cover it fully.
+      - cd {{.DEF_DIR}} && GOWORK=off go vet ./...
+      - cd {{.DEF_DIR}} && GOWORK=off go test -race ./...
+      - task: crosscheck
+      - task: docverify
+      - task: sigverify
+
+  cover:
+    desc: "coverage per package, and the statement-weighted total across ALL modules"
+    # A script rather than `go test -cover` because this repository is four
+    # modules plus a definition module deliberately outside the workspace, so
+    # no single go command sees all of it. A number that quietly omits a module
+    # reads as a measurement of the whole and is worse than no number.
+    cmds:
+      - python3 scripts/coverage.py {{.CLI_ARGS}}
+
+  cover:badge:
+    desc: "rewrite the README coverage badge to the measured number"
+    cmds:
+      - python3 scripts/coverage.py --badge
+
+  cover:check:
+    desc: "fail if the README coverage badge is stale, or coverage is below the floor"
+    # The floor is deliberately BELOW the current number: a gate that sits
+    # exactly at today's coverage fails on any honest refactor that moves a
+    # statement, which teaches people to lower the floor rather than fix the
+    # test.
+    cmds:
+      - python3 scripts/coverage.py --check --min 85
+
+  docverify:
+    desc: "prove the reference docs name only symbols that actually exist"
+    # Added after a docs pass referenced three symbols by memory. All three
+    # happened to exist, but nothing would have caught it if they had not:
+    # a renamed function leaves its old name in prose and no build fails, so
+    # the next reader copies a snippet that does not compile.
+    #
+    # Scoped to docs/kit and docs/steps on purpose — the PRIMITIVES documents
+    # are preserved proposals that name renamed and rejected identifiers by
+    # design, each with a mapping table. See the script's docstring.
+    cmds:
+      - python3 scripts/docverify.py
+
+  sigverify:
+    desc: "prove every signature the docs show is the signature that exists"
+    # docverify's blind spot, added after an audit found nine drifted ones it
+    # had reported clean — including pipeline.NewState documented WITHOUT its
+    # opts parameter, the one carrying Debug(d), and five writing `ctx` with no
+    # type at all. Every symbol was real, so name-checking saw nothing; the
+    # snippets simply would not compile.
+    #
+    # It ignores what a caller cannot observe (receiver names, named returns)
+    # on purpose: a gate that reports noise is a gate people learn to skip.
+    cmds:
+      - python3 scripts/sigverify.py
+
+  crosscheck:
+    desc: "prove it still COMPILES for every OS, not just this one"
+    # Added after proc shipped for a month unable to compile on Windows. Its
+    # doc comment said Find was "unsupported" there, which reads as a runtime
+    # limitation — but syscall.Kill does not exist on Windows, so the package,
+    # and everything importing it, failed to build for that platform entirely.
+    #
+    # A claim in a comment is not verifiable. This is.
+    #
+    # COMPILING IS NOT SUPPORT, and windows is here for exactly that reason:
+    # keeping the !unix fallbacks compiling costs one build and stops the
+    # platform rotting, while support means the full gate runs there, which it
+    # does not. Supported today: linux and macOS, both of which run everything
+    # in CI. If windows ever ships, it earns a matrix entry there first.
+    cmds:
+      - for: ["linux", "darwin", "windows"]
+        cmd: GOOS={{.ITEM}} go build github.com/ubgo/lath/...
+      # vet as well as build, because `go build` ignores _test.go files: a
+      # test using syscall.Kill compiled fine here and made the package's test
+      # binary unbuildable on windows, which is the SAME failure this task was
+      # created for, one directory over. vet type-checks the tests.
+      - for: ["linux", "darwin", "windows"]
+        cmd: GOOS={{.ITEM}} go vet github.com/ubgo/lath/...
+
+  test:linux:
+    desc: "run the WHOLE gate on linux, in docker — the platform CI uses, before pushing"
+    # Why this exists: the supported platforms are linux and macOS, and a
+    # developer on a Mac cannot check half of that claim. Waiting for CI to
+    # find a linux-only failure means a push, a red badge, and a fix commit
+    # for something that could have been caught in ninety seconds.
+    #
+    # It runs `task check` and `task cover` — the SAME gate, not a copy of its
+    # steps, so this cannot drift from what CI enforces.
+    #
+    # The checkout is mounted rather than copied, so it tests the working tree
+    # including uncommitted work. Build and module caches are named volumes:
+    # without them every run recompiles the standard library, which is the
+    # difference between ninety seconds and five minutes.
+    vars:
+      # Native architecture by default. Override to check the other one:
+      # `task test:linux PLATFORM=linux/amd64` runs under emulation, which is
+      # slow but is the only way to see a genuinely arch-specific failure.
+      PLATFORM: '{{.PLATFORM | default ""}}'
+    cmds:
+      - docker build {{if .PLATFORM}}--platform {{.PLATFORM}}{{end}} -f .docker/linux-test.Dockerfile -t lath-linux-test .
+      - >-
+        docker run --rm {{if .PLATFORM}}--platform {{.PLATFORM}}{{end}}
+        -v {{.TASKFILE_DIR}}:/src
+        -v lath-go-build:/home/lath/.cache/go-build
+        -v lath-go-mod:/home/lath/go/pkg/mod
+        lath-linux-test
+        sh -c "task check && task cover"
+
+  test:linux:shell:
+    desc: "a shell in the linux test image, for reproducing a failure by hand"
+    cmds:
+      - docker build -f .docker/linux-test.Dockerfile -t lath-linux-test .
+      - >-
+        docker run --rm -it
+        -v {{.TASKFILE_DIR}}:/src
+        -v lath-go-build:/home/lath/.cache/go-build
+        -v lath-go-mod:/home/lath/go/pkg/mod
+        lath-linux-test bash
+
+  fmt:
+    desc: format all Go source
+    cmds:
+      - gofmt -w apps modules example
+      - cd {{.DEF_DIR}} && GOWORK=off gofmt -w .
+
+  fmt:check:
+    desc: fail if anything is unformatted
+    cmds:
+      - 'test -z "$(gofmt -l cmd kit pipeline steps example)" || { gofmt -l cmd kit pipeline steps example; exit 1; }'
+
+  test:
+    desc: run tests without the race detector (faster inner loop)
+    cmds:
+      - go test {{.PKGS}}
+      - cd {{.DEF_DIR}} && GOWORK=off go test ./...
+
+  tidy:
+    desc: tidy every module
+    cmds:
+      - cd kit && go mod tidy
+      - cd pipeline && go mod tidy
+      - cd steps && go mod tidy
+      - cd cmd/lath && go mod tidy
+      - cd example && go mod tidy
+      - cd {{.DEF_DIR}} && GOWORK=off go mod tidy
+
+  list:
+    desc: list the targets the example definition exposes
+    deps: [build]
+    dir: example
+    cmds:
+      - '{{.BIN}} list'
+
+  plan:
+    desc: "list the example pipeline's steps, execute nothing (usage: task plan -- prod)"
+    deps: [build]
+    dir: example
+    cmds:
+      - '{{.BIN}} run plan {{.CLI_ARGS | default "dev"}}'
+
+  deploy:
+    desc: "run the example pipeline (usage: task deploy -- prod)"
+    deps: [build]
+    dir: example
+    cmds:
+      - '{{.BIN}} run deploy {{.CLI_ARGS | default "dev"}}'
+
+  dryrun:
+    desc: "walk the pipeline with side effects suppressed (usage: task dryrun -- prod)"
+    deps: [build]
+    dir: example
+    cmds:
+      - '{{.BIN}} run dryrun {{.CLI_ARGS | default "dev"}}'
+
+  install:
+    desc: "symlink bin/lath onto PATH (override: task install INSTALL_DIR=…)"
+    deps: [build]
+    cmds:
+      # Guard: never write into a system bin, however INSTALL_DIR resolved.
+      - 'case "{{.INSTALL_DIR}}" in /bin|/usr/bin|/sbin|/|"") echo "refusing to install into {{.INSTALL_DIR}}"; exit 1;; esac'
+      - mkdir -p "{{.INSTALL_DIR}}"
+      # A SYMLINK, not a copy — every later `task build` is picked up with no
+      # reinstall, so an installed copy can never drift from the source.
+      - ln -sfn "{{.BIN}}" "{{.INSTALL_DIR}}/lath"
+      - 'echo "linked {{.INSTALL_DIR}}/lath -> {{.BIN}}"'
+      - 'command -v lath >/dev/null || echo "WARNING: {{.INSTALL_DIR}} is not on your PATH"'
+
+  uninstall:
+    desc: remove the symlink
+    cmds:
+      # Refuse anything that is not our symlink, so a real binary sharing the
+      # name is never deleted.
+      - 'test -L "{{.INSTALL_DIR}}/lath" || { echo "not a symlink, refusing: {{.INSTALL_DIR}}/lath"; exit 1; }'
+      - /bin/rm -f "{{.INSTALL_DIR}}/lath"
+      - 'echo "removed {{.INSTALL_DIR}}/lath"'
+
+  which:
+    desc: show what an installed lath resolves to
+    cmds:
+      - 'command -v lath && ls -l "$(command -v lath)" || echo "lath not on PATH"'
+
+  isolation:
+    desc: prove the definition module never enters the parent module graph
+    cmds:
+      - go work vendor
+      - 'test ! -d vendor/lath && echo "OK: definition deps are not in the workspace vendor/"'
+      - /bin/rm -rf vendor
+
+  graph:
+    desc: show which module depends on which
+    cmds:
+      - 'echo "example/.lath (deploydef)        -> github.com/ubgo/lath/pipeline, github.com/ubgo/lath/steps  [outside the workspace]"'
+
+  clean:
+    desc: drop the compiled-pipeline cache and built binary
+    cmds:
+      - /bin/rm -rf "${HOME}/Library/Caches/lath" bin

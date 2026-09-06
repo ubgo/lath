@@ -1,0 +1,24 @@
+# Consistent whitespace regardless of editor. Go's own conventions where they
+# apply, since gofmt is not negotiable and the editor should not fight it.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.go]
+indent_style = tab
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.md]
+# Trailing whitespace is significant in markdown (two spaces is a line break),
+# and prose here is never hard-wrapped, so the renderer decides where lines end.
+trim_trailing_whitespace = false
+max_line_length = off

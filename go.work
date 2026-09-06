@@ -1,0 +1,29 @@
+go 1.24
+
+// The repository root is deliberately NOT a module. Only this file lives here,
+// so a go.mod and a go.work never sit side by side confusing which one governs.
+//
+// Every module's directory equals its import path suffix, which Go requires:
+// a module declaring github.com/ubgo/lath/kit MUST sit at kit/, or the
+// proxy cannot resolve it. An earlier layout kept these under modules/ and was
+// unfetchable by anyone outside this checkout — it worked only because replace
+// directives and this file hid the mismatch.
+//
+//	cmd/lath   github.com/ubgo/lath/cmd/lath   the runner; links nothing of ours
+//	kit        github.com/ubgo/lath/kit        libraries, no lath dependency
+//	pipeline   github.com/ubgo/lath/pipeline   the Step contract, no dependency
+//	steps      github.com/ubgo/lath/steps      adapters: kit + pipeline
+//
+// example/ is a stand-in for a USER's repository: lath is a dependency of its
+// definition, not a sibling of its application.
+//
+// example/.lath is deliberately ABSENT. It is a nested module that must stay
+// outside the workspace so `go work vendor` and `go build ./...` never reach
+// it. That exclusion is the mechanism under test — run `task isolation`.
+use (
+	./cmd/lath
+	./kit
+	./pipeline
+	./steps
+	./example
+)

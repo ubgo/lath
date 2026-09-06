@@ -1,0 +1,81 @@
+# The gate, run on every push and pull request.
+#
+# It installs `task` and runs `task check` rather than listing the individual
+# commands: a workflow that re-lists them becomes a second definition of the
+# gate, and the two drift until CI passes something a developer's machine
+# rejects, or the reverse. One definition, two places that run it.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push supersedes an in-flight run on the same ref. Nobody reads the
+  # result of a run whose commit is already history.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Both supported platforms run the FULL gate, because "supported" has to
+    # mean something that was checked. Windows is not here on purpose: it
+    # compiles — `crosscheck`, inside the gate, proves that on every run — but
+    # nothing has been run or tested there, and a green Windows job would
+    # advertise a support level that does not exist.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # Read from the module rather than pinned here, so the toolchain
+          # this repository declares and the one CI uses cannot disagree.
+          go-version-file: kit/go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: Install task
+        # Pinned, and installed with go rather than a third-party action: the
+        # gate is the thing that decides whether code merges, and it should
+        # depend on as little as it can.
+        run: go install github.com/go-task/task/v3/cmd/task@v3.44.0
+
+      - name: Gate
+        # fmt, vet, race tests across every module including the definition
+        # module outside the workspace, a build for linux/darwin/windows, and
+        # both documentation checks.
+        run: task check
+
+      - name: Coverage
+        # Once, not per platform: the number is a property of the code, and two
+        # runs would differ only where a test skips for want of a tool, which
+        # would make the floor mean something different on each.
+        #
+        # The floor sits BELOW the current number on purpose: a gate pinned to
+        # today's coverage fails on any honest refactor that moves a statement,
+        # which teaches people to lower the floor rather than fix the test.
+        if: matrix.os == 'ubuntu-latest'
+        run: task cover -- --min 85
+
+  # A separate job, because the question it answers is different: not "is the
+  # code correct" but "can a stranger who clones this build it". The definition
+  # module resolves lath through replace directives pointing at this checkout,
+  # so a broken module path shows up here and nowhere else.
+  isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: kit/go.mod
+          cache-dependency-path: "**/go.sum"
+      - run: go install github.com/go-task/task/v3/cmd/task@v3.44.0
+      - run: task isolation

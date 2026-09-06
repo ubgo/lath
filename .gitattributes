@@ -1,0 +1,21 @@
+# Normalise line endings on the way in, so a Windows checkout does not turn
+# every file into a diff. Shell scripts and Go source keep LF in the working
+# tree as well: a CRLF shebang line is a script that will not run.
+* text=auto eol=lf
+
+*.go text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+
+# Binary, so git never tries to merge or diff them as text.
+*.png binary
+*.jpg binary
+*.gz binary
+*.zip binary
+
+# Keep generated and vendored code out of the language statistics, so the
+# repository is reported as what people actually write here.
+example/.lath/go.sum linguist-generated=true
+go.work.sum linguist-generated=true
