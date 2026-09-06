@@ -87,7 +87,11 @@ func TestFilesFilters(t *testing.T) {
 				t.Fatalf("got %v; want %v", rel, tc.want)
 			}
 			for i := range rel {
-				if rel[i] != tc.want[i] {
+				// filepath.ToSlash on the RESULT, not on the package's output:
+				// Files returns native paths on purpose, since a caller hands
+				// them to os.Open. Only this comparison needs them in the
+				// shape a human wrote the expectation in.
+				if filepath.ToSlash(rel[i]) != tc.want[i] {
 					t.Errorf("got %v; want %v", rel, tc.want)
 					break
 				}

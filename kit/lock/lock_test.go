@@ -16,7 +16,6 @@ import (
 
 	"github.com/ubgo/lath/kit/internal/fsprobe"
 	"github.com/ubgo/lath/kit/lock"
-	"github.com/ubgo/lath/kit/proc"
 )
 
 func lockPath(t *testing.T) string {
@@ -182,13 +181,14 @@ func TestDeadHolderIsReclaimed(t *testing.T) {
 // is live, the process behind it is not the one that took the lock. Comparing
 // PIDs alone would honour this lock forever.
 func TestReusedPIDIsNotMistakenForTheHolder(t *testing.T) {
-	// A recycled PID is told from the original holder by comparing process
-	// START TIMES, which this package reads with ps. Where ps does not exist —
-	// Windows — liveness degrades to existence alone, which kit/lock documents
-	// as best-effort, and the distinction this test asserts is unanswerable
-	// rather than broken.
-	if !proc.Exists("ps") {
-		t.Skip("no ps: process start times are unavailable, so liveness is existence-only (documented)")
+	// The distinction this test asserts exists only where start times can be
+	// read. Asked of the package rather than guessed from the platform: ps
+	// EXISTS on Windows and simply reports no start time, so "is ps
+	// installed" was the wrong question and passed where it should have
+	// skipped.
+	if !lock.LivenessVerifiable() {
+		t.Skip("process start times are unavailable here, so a recycled PID cannot be " +
+			"distinguished from a live holder (documented: liveness is best-effort)")
 	}
 	t.Parallel()
 	path := lockPath(t)

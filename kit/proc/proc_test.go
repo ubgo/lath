@@ -186,8 +186,12 @@ func TestDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// macOS reports /private/var for /var, so compare the tail.
-	if !strings.HasSuffix(out, strings.TrimPrefix(dir, "/private")) {
+	// Compared by BASENAME, because what pwd prints varies by platform in ways
+	// that have nothing to do with proc.Dir: macOS reports /private/var for
+	// /var, and a POSIX shell on Windows reports /tmp/... for a directory Go
+	// calls C:\Users\...\Temp\.... The question is only whether the child
+	// started in the directory it was given, and the last element answers it.
+	if !strings.HasSuffix(strings.TrimSpace(out), filepath.Base(dir)) {
 		t.Errorf("pwd = %q; want it inside %q", out, dir)
 	}
 }

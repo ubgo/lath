@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // ErrSameFile reports a copy whose source and destination are the same file.
@@ -61,25 +62,50 @@ func WriteAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	if err = tmp.Close(); err != nil {
 		return fmt.Errorf("fsx: closing %s: %w", tmpName, err)
 	}
-	if err = os.Rename(tmpName, path); err != nil {
-		// Windows refuses to replace a destination carrying the read-only
-		// attribute, which is what Go's Chmod sets for any mode without a
-		// write bit. So a file written with 0400 — a certificate, a key, a
-		// config nobody should edit — could be created and then never
-		// atomically updated again, failing with "Access is denied" while the
-		// caller holds every permission it needs.
-		//
-		// Only attempted when the destination is genuinely non-writable, so a
-		// real permission failure is still reported as one. On unix the rename
-		// succeeds first time and this never runs.
-		if !clearReadOnly(path) {
-			return fmt.Errorf("fsx: renaming to %s: %w", path, err)
-		}
-		if err = os.Rename(tmpName, path); err != nil {
-			return fmt.Errorf("fsx: renaming to %s: %w", path, err)
-		}
+	if err = replace(tmpName, path); err != nil {
+		return fmt.Errorf("fsx: renaming to %s: %w", path, err)
 	}
 	return nil
+}
+
+// replaceAttempts and replaceBackoff bound the retry below. Roughly a tenth of
+// a second in total: long enough to outlast a reader that opened the file to
+// read it, short enough that a genuine failure is still reported promptly.
+const (
+	replaceAttempts = 10
+	replaceBackoff  = 10 * time.Millisecond
+)
+
+// replace renames tmp over path, working around two Windows behaviours that do
+// not exist on unix, where the first attempt always succeeds.
+//
+// The first is the read-only ATTRIBUTE, which Go sets for any mode without a
+// write bit. A file written 0400 — a certificate, a key, a config nobody
+// should edit — could be created and then never atomically updated again,
+// failing with "Access is denied" while the caller held every permission it
+// needed.
+//
+// The second is sharing. Windows refuses to replace a file another handle has
+// open, so an atomic write racing a READER fails, which is precisely the case
+// this function exists to make safe. The window is a few milliseconds, so a
+// bounded retry converts a spurious failure into a slightly slower success;
+// past the bound the error is reported unchanged, because something is holding
+// the file open for real and hiding that would be worse.
+func replace(tmp, path string) error {
+	err := os.Rename(tmp, path)
+	if err == nil {
+		return err
+	}
+	if clearReadOnly(path) {
+		if err = os.Rename(tmp, path); err == nil {
+			return nil
+		}
+	}
+	for attempt := 1; attempt < replaceAttempts && err != nil; attempt++ {
+		time.Sleep(replaceBackoff)
+		err = os.Rename(tmp, path)
+	}
+	return err
 }
 
 // clearReadOnly makes an existing path writable, reporting whether it changed
