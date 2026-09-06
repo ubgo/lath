@@ -2,6 +2,52 @@
 
 How this repository proves it works, what "supported" means here, and how to check Linux from a Mac before pushing.
 
+## What is verified, and what is not
+
+A green gate is a claim, and the claim has edges. This is where they are, so nobody reads 88% coverage as "everything works".
+
+### Verified by the gate, on every push
+
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| Every package's unit and behaviour tests, with `-race` | ✅ | ✅ | ✅ |
+| The definition module outside the workspace | ✅ | ✅ | ✅ |
+| **Compiling a real definition and executing it** — the runner's whole job | ✅ | ✅ | ✅ |
+| Pipeline validation, `plan`, `dry-run`, state wiring | ✅ | ✅ | ✅ |
+| Compiles and vets for all three platforms (`crosscheck`) | ✅ | ✅ | ✅ |
+| The reference docs match the API, both directions | ✅ | ✅ | ✅ |
+| The definition module stays out of the workspace graph (`isolation`) | ✅ | — | — |
+
+Plus, locally: `task test:linux` runs the identical gate in Docker, and `PLATFORM=linux/amd64` runs it emulated on the other architecture.
+
+### Exercised against the real tool
+
+These tests refuse to take this project's word for a format and ask the other end instead. Each skips, with a reason, where the tool is absent:
+
+| Tool | What it proves |
+|---|---|
+| `git` | `kit/git`'s write half — clone, commit, push, annotated tags — against a real repository with a bare remote |
+| `sha256sum` / `shasum` | A `checksums.txt` this project wrote verifies with `-c` on a machine that has never heard of lath |
+| `ruby -c` | The rendered Homebrew formula is syntactically valid Ruby |
+| `ssh`, `pgrep` | Present-or-absent behaviour, and the exact argv built for them |
+
+### NOT verified by any test
+
+The honest column. Everything here is exercised through a fake, or only by hand:
+
+| | How it is tested | What that misses |
+|---|---|---|
+| **Docker** | A fake runner records the argv; no daemon is ever contacted | That the commands this builds do what docker actually does. A flag that changed meaning between docker versions would pass every test |
+| **ssh to a real host** | A stub `ssh` script on `PATH` records its arguments | Authentication, host-key behaviour, connection loss mid-command, a remote shell that quotes differently |
+| **Cloudflare, GitHub, Caddy** | `httptest` servers replaying recorded shapes | The real APIs changing. `kit/cloudflare` exists partly because Cloudflare reports failure *inside* a 200 body — the kind of thing only the real service teaches you |
+| **A full deploy** | Not tested. Done by hand, from macOS, against a live host | Everything about deploying that is not a unit: image pulls, health checks against a real container, traffic switching, rollback under load |
+| **Deploying from Windows** | Never attempted | Whether a Windows machine can drive a deploy at all. The runner works there and remote paths use the *remote's* separator deliberately, but nobody has run it |
+| **The TUI, attached** | The panel's rendering and key handling are tested; `attachTo` and the launch path are not | The interactive experience over a real socket |
+
+The gap that matters most is the fourth row. **No automated test performs a deploy**, because a deploy needs a host, a registry and a daemon, and a test suite that needs those is a test suite people stop running. The mitigation is that `example/.lath` rehearses the entire pipeline in dry-run on every push — every step executes, with side effects suppressed — so the wiring, the ordering and the state contracts are checked even though nothing is shipped.
+
+If you are evaluating lath for real work: what is proven is that the *tool* behaves as documented. What is not proven is that the deploy *you* write does, which is exactly why `plan`, `dry-run` and `lath tui` exist.
+
 ## The gate
 
 ```sh
