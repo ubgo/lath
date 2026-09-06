@@ -35,7 +35,7 @@ Run `task check`. It must pass, and it covers more than tests:
 |---|---|
 | `fmt:check`, `go vet` | Formatting and the obvious mistakes |
 | `go test -race` | Every module, including the definition module outside the workspace |
-| `crosscheck` | It still **compiles and vets** for linux, darwin and windows — vet as well as build, because `go build` skips `_test.go` files and a unix-only call in a test leaves the test binary unbuildable elsewhere. Compiling is not support: linux and macOS run the full gate in CI; Windows is checked statically only, and `gh workflow run windows.yml` is how that changes |
+| `crosscheck` | It still **compiles and vets** for linux, darwin and windows — vet as well as build, because `go build` skips `_test.go` files and a unix-only call in a test leaves the test binary unbuildable elsewhere. All three platforms are supported and run the full gate in CI; this task is the cheap check that catches a platform break before CI does |
 | `docverify` | Every symbol named in the reference docs exists, and every exported symbol is documented somewhere |
 | `sigverify` | Every signature shown in the docs is the signature that exists |
 
