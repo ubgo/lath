@@ -129,14 +129,6 @@ func (p *Process) Signal(sig syscall.Signal) error {
 	if p.cmd.Process == nil {
 		return nil
 	}
-	// Already reaped: there is nothing to signal, and the platforms disagree
-	// loudly about how to say so. Unix returns ESRCH, handled below; Windows
-	// returns "invalid argument" or "TerminateProcess: Access is denied",
-	// which look like real failures and turned the ordinary shape — Wait, then
-	// a deferred Stop — into a reported error for doing nothing.
-	if p.cmd.ProcessState != nil {
-		return nil
-	}
 	if err := deliver(p.cmd.Process, sig); err != nil {
 		// Already gone is the normal case during shutdown; reporting it would
 		// add noise to every clean exit.
