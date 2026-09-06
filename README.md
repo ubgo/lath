@@ -7,7 +7,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/go-1.24%2B-2ea44f" alt="Requires Go 1.24 or newer">
   <img src="https://img.shields.io/badge/dependencies-zero-2ea44f" alt="Zero dependencies — kit and pipeline are stdlib only">
-  <img src="https://img.shields.io/badge/coverage-87.7%25-2ea44f" alt="Statement coverage across every module: 87.7%">
+  <img src="https://img.shields.io/badge/coverage-87.8%25-2ea44f" alt="Statement coverage across every module: 87.8%">
   <img src="https://img.shields.io/badge/platforms-linux%20%C2%B7%20macOS%20%C2%B7%20windows-2ea44f" alt="Supported on linux, macOS and windows">
 </p>
 
@@ -25,8 +25,31 @@ lath tui deploy local --apply        # ...stepping through them one at a time
 
 That last one is the part YAML cannot give you. A deploy you cannot rehearse is a deploy you find out about in production.
 
+## Install
+
+```sh
+go install github.com/ubgo/lath/cmd/lath@latest
+```
+
+That is the whole of it — one binary, no daemon, no account, nothing to configure. It needs Go 1.24+ to build a definition, since a definition *is* Go, and whatever the definition drives: `docker` and `ssh` for the shipped steps, `git` for the commit it stamps.
+
+From source, for working on lath itself:
+
+```sh
+git clone https://github.com/ubgo/lath && cd lath
+task build && task install     # symlinks bin/lath onto your PATH
+```
+
+Then, in any repository:
+
+```sh
+lath init      # scaffold ./.lath with a working starter
+lath list      # what it exposes
+```
+
 ## Contents
 
+- [Install](#install)
 - [What this replaces](#what-this-replaces)
 - [Why you might want this](#why-you-might-want-this)
 - [Working with an agent](#working-with-an-agent)

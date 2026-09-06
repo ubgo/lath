@@ -407,3 +407,26 @@ func TestNamespaceWithNothingAfterItLists(t *testing.T) {
 		t.Errorf("an explicit --help exited %d, want success:\n%s", code, out)
 	}
 }
+
+// TestVersionFallsBackToTheModuleVersion.
+//
+// `go install …@v0.1.0` cannot pass ldflags, so every installed copy reported
+// itself as "dev" — and a tool that cannot say which version it is makes every
+// bug report guesswork. Under `go test` the binary has no module version
+// either, so what this pins is the CONTRACT: an ldflags-set version always
+// wins, and the fallback never reports something meaningless.
+func TestVersionFallsBackToTheModuleVersion(t *testing.T) {
+	original := version
+	t.Cleanup(func() { version = original })
+
+	version = "v9.9.9"
+	if got := buildVersion(); got != "v9.9.9" {
+		t.Errorf("buildVersion() = %q; an explicit ldflags version must win", got)
+	}
+
+	version = "dev"
+	if got := buildVersion(); got == "" || got == "(devel)" {
+		t.Errorf("buildVersion() = %q; the fallback must never report an empty "+
+			"or meaningless version", got)
+	}
+}
