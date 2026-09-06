@@ -7,7 +7,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/go-1.24%2B-2ea44f" alt="Requires Go 1.24 or newer">
   <img src="https://img.shields.io/badge/dependencies-zero-2ea44f" alt="Zero dependencies — kit and pipeline are stdlib only">
-  <img src="https://img.shields.io/badge/coverage-87.8%25-2ea44f" alt="Statement coverage across every module: 87.8%">
+  <img src="https://img.shields.io/badge/coverage-87.7%25-2ea44f" alt="Statement coverage across every module: 87.7%">
   <img src="https://img.shields.io/badge/platforms-linux%20%C2%B7%20macOS-2ea44f" alt="Supported on linux and macOS">
 </p>
 

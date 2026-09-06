@@ -59,6 +59,10 @@ func TestRunReportsExitCodeAsData(t *testing.T) {
 func TestRunDistinguishesSignalFromExit(t *testing.T) {
 	t.Parallel()
 	requireShell(t)
+	if !proc.SignalsSupported {
+		t.Skip("no signals on this platform, so there is no distinction to preserve: " +
+			"a terminated process reports an exit code like any other")
+	}
 
 	// A child that kills itself with SIGTERM.
 	killed, err := proc.Run(context.Background(), shell, []string{"-c", "kill -TERM $$"})
@@ -208,7 +212,9 @@ func TestTimeoutKillsAndReports(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("took %s; the timeout did not fire", elapsed)
 	}
-	if !r.Signalled {
+	// HOW it died is only knowable where signals exist. That it died on time,
+	// asserted above, is the property that matters everywhere.
+	if proc.SignalsSupported && !r.Signalled {
 		t.Error("a timed-out process should report Signalled")
 	}
 }
@@ -229,7 +235,15 @@ func TestContextCancellationStops(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("took %s; cancellation did not stop it", elapsed)
 	}
-	if !r.Signalled || r.Signal != syscall.SIGTERM {
+	// The process must not have finished its own 30-second sleep — that is
+	// what "stopped" means, and it holds on every platform. This was the test
+	// that exposed Stop doing nothing on Windows: it sat the full thirty
+	// seconds and reported a clean exit.
+	if r.ExitCode == 0 {
+		t.Errorf("got %+v; a cancelled process must not exit successfully", r)
+	}
+	// WHICH signal ended it is only meaningful where signals exist.
+	if proc.SignalsSupported && (!r.Signalled || r.Signal != syscall.SIGTERM) {
 		t.Errorf("got %+v; want a SIGTERM'd process", r)
 	}
 }
