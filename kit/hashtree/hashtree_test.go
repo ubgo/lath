@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ubgo/lath/kit/hashtree"
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 	"github.com/ubgo/lath/kit/scan"
 )
 
@@ -234,9 +235,7 @@ func TestEmptyTreeStillHashes(t *testing.T) {
 // That digest would then match a cached build and skip work that needed doing.
 func TestAnUnreadableFileFailsTheDigest(t *testing.T) {
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root reads anything")
-	}
+	fsprobe.NeedsEnforcedPermissions(t)
 	root := t.TempDir()
 	sealed := filepath.Join(root, "sealed.txt")
 	if err := os.WriteFile(sealed, []byte("secret"), 0o000); err != nil {

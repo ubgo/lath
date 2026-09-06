@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 	"github.com/ubgo/lath/kit/remotefs"
 	"github.com/ubgo/lath/kit/runner"
 )
@@ -130,9 +131,7 @@ func TestMkdirAllCreatesAndChowns(t *testing.T) {
 func TestChownFailureDoesNotFailTheCall(t *testing.T) {
 	skipWithoutShell(t)
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root can chown to anything")
-	}
+	fsprobe.NeedsEnforcedPermissions(t)
 	dir := filepath.Join(t.TempDir(), "owned")
 	// uid 1 is not ours, so the chown will be refused.
 	if err := remotefs.MkdirAll(context.Background(), nil, "1:1", dir); err != nil {
@@ -262,9 +261,7 @@ func TestWriteFileOwnerEmptyOwnerMatchesWriteFileMode(t *testing.T) {
 func TestWriteFileOwnerSurvivesUnchownableTarget(t *testing.T) {
 	skipWithoutShell(t)
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("running as root, where the chown would succeed")
-	}
+	fsprobe.NeedsEnforcedPermissions(t)
 	path := filepath.Join(t.TempDir(), "creds", "key")
 	const content = "-----BEGIN PRIVATE KEY-----\n"
 

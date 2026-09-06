@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/ubgo/lath/kit/archive"
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 	"github.com/ubgo/lath/kit/scan"
 )
 
@@ -490,9 +491,7 @@ func TestExtractCreatesADestinationThatDoesNotExistYet(t *testing.T) {
 // the difference until a restore comes up short.
 func TestTarGzReportsAnUnreadableFile(t *testing.T) {
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root reads unreadable files")
-	}
+	fsprobe.NeedsEnforcedPermissions(t)
 	root := t.TempDir()
 	secret := filepath.Join(root, "secret.txt")
 	if err := os.WriteFile(secret, []byte("classified"), 0o000); err != nil {
@@ -518,9 +517,7 @@ func TestTarGzReportsAnUnreadableFile(t *testing.T) {
 // never have: the caller proceeds to use files that are not there.
 func TestExtractRefusesAnUnwritableDestination(t *testing.T) {
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root writes anywhere")
-	}
+	fsprobe.NeedsEnforcedDirectoryPermissions(t)
 	bundle := handMade(t, []*tar.Header{
 		{Name: "nested/hello.txt", Typeflag: tar.TypeReg, Size: 5, Mode: 0o600},
 	}, []string{"hello"})
@@ -576,9 +573,7 @@ func TestExtractRejectsATruncatedArchive(t *testing.T) {
 // the worst possible moment to learn a backup is not there.
 func TestTarGzReportsAnUnwritableDestination(t *testing.T) {
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root writes anywhere")
-	}
+	fsprobe.NeedsEnforcedDirectoryPermissions(t)
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("a"), 0o600); err != nil {
 		t.Fatal(err)

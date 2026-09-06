@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 	"github.com/ubgo/lath/kit/scan"
 )
 
@@ -358,9 +359,7 @@ func TestMatchUnreadableFile(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix permission bits")
 	}
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores permission bits")
-	}
+	fsprobe.NeedsEnforcedPermissions(t)
 	root := tree(t, map[string]string{"secret.go": "TODO\n"})
 	path := filepath.Join(root, "secret.go")
 	if err := os.Chmod(path, 0o000); err != nil {

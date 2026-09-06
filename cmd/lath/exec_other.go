@@ -17,6 +17,14 @@ import (
 // build tags exist so that difference is visible rather than emulated badly.
 //
 // Invariant: on success this never returns; it exits with the child's code.
+// binarySuffix is what an executable file is called on this platform.
+//
+// Windows requires it, and omitting it was a real bug rather than a cosmetic
+// one: `go build -o <name>` produces <name>.exe, the runner then tried to exec
+// <name>, and the run died with "executable file not found in %PATH%" — the
+// definition had compiled perfectly and could not be started.
+const binarySuffix = ".exe"
+
 func handOff(binPath string, args []string) error {
 	cmd := exec.Command(binPath, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
