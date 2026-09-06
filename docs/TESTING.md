@@ -89,7 +89,7 @@ Last measured on 2026-09-06, running the full gate on each:
 | macOS · arm64 | `task check` on the host | ✅ pass | 88.2% |
 | Linux · arm64 | `task test:linux` (Docker, native) | ✅ pass | 88.3% |
 | Linux · amd64 | `task test:linux PLATFORM=linux/amd64` (QEMU) | ✅ pass | 88.2% |
-| Windows | `gh workflow run windows.yml` | ⚠️ **unsupported** — 25 of 33 packages pass, see below | — |
+| Windows | `task check` in CI | ✅ pass | — |
 
 Linux measures marginally higher because the container runs as a non-root user, so the permission tests that skip elsewhere actually execute. The amd64 figure matches macOS for the same reason in reverse — see the note on platform variance above.
 
@@ -97,48 +97,43 @@ Linux measures marginally higher because the container runs as a non-root user, 
 |---|---|---|---|
 | Linux | ✅ full gate in CI, and locally via `task test:linux` | ✅ | ✅ |
 | macOS | ✅ full gate in CI | ✅ | ✅ |
-| Windows | ❌ **not yet** — one real bug, one documented limitation, and a set of POSIX-only test assumptions | ✅ every commit, via `crosscheck` | ⚠️ on demand, 25 of 33 packages pass |
+| Windows | ✅ full gate in CI | ✅ | ✅ |
 
 **Compiling is not support.** `crosscheck` keeps Windows building so the `!unix` fallbacks do not rot, and that is all it claims. What is already known to differ there: the runner cannot replace its own process image, so it spawns a child and forwards the exit code instead of `exec`; terminal detection is a stub that always answers yes, which affects `--debug`; `proc.Find` needs `pgrep` and reports `ErrUnsupported`; `kit/lock` falls back to `StaleAfter` because it cannot verify liveness.
 
-### Testing Windows
+### Windows
 
-There is no way to run Windows tests from a Mac or a Linux box — Docker's Windows containers need a Windows host, and a VM is a heavier commitment than this question deserves. So there are two levels:
+Supported since it passed, not since it compiled. Getting there took four real
+product fixes and a set of tests that were asserting the platform rather than
+the behaviour. The sequence is worth reading, because every step was invisible
+from a Mac:
 
-**Statically, on every run.** `crosscheck` builds *and vets* for all three platforms. The vet half matters more than it sounds: `go build` ignores `_test.go` files, so a test using a unix-only call compiles cleanly here and leaves the package's test binary unbuildable on Windows. That happened — a `syscall.Kill` helper — and it is the same failure `crosscheck` was created for, one directory over. Vet type-checks the tests, so it is caught now.
+**Run 1 tested nothing.** `go test ./...` from the repository root fails with *"directory prefix . does not contain modules listed in go.work"*, and `continue-on-error` turned that into a green job. The module-path pattern fixed it, and the job now writes each suite's real `outcome` into the summary — `continue-on-error` makes a step's *conclusion* success no matter what happened.
 
-**Actually running them: `.github/workflows/windows.yml`, on demand.**
+**Run 2: 25 of 33 packages passed.** The failures were mostly tests asserting that mode `0000` blocks a read and a read-only directory blocks a write, which Windows does not honour, so the operations succeeded and the tests reported failures that were not failures. Plus one real bug: the compiled definition was written without an `.exe` suffix, so the runner could not exec what it had just built.
 
-```sh
-gh workflow run windows.yml
-gh run watch
-```
+**Run 3: four packages left**, and this is where it got interesting. `kit/scan` matched `Include`/`Exclude` against raw paths, so a filter written `vendor/` matched nothing on Windows and **a scan asked to skip vendored code returned it**. `fsx.WriteAtomic` could not replace a file another handle had open — precisely the case it exists to make safe — nor one carrying the read-only attribute, so a certificate written `0400` could be created once and never atomically updated again.
 
-Manually dispatched, never on push — because a red badge for a platform nobody claims to support teaches people to ignore red badges. Not for cost: GitHub-hosted standard runners are free and unmetered on public repositories.
+**Run 4: one package left, and the worst finding.** There are no signals on Windows: Go accepts only `os.Kill`, everything else fails with *"not supported by windows"*, and that error propagated. **`Stop`, `Timeout` and context cancellation all silently did nothing.** A test that expected a cancelled command to die sat for the full thirty seconds and reported a clean exit. A process nobody can stop is worse than no `Stop` at all, so a signal became a kill there — and the cost is stated rather than hidden through `proc.SignalsSupported`.
 
-#### What it found, first real run (2026-09-06)
+**Run 5: everything passes.** Windows joined the CI matrix the same day.
 
-**25 of 33 packages pass**, including every network and API package, the whole `pipeline` and `steps` layer, and the example definition end to end. Windows is considerably closer to working than "unsupported" suggests.
+#### What still differs
 
-| Failing package | Why |
+Supported does not mean identical, and the differences are exposed as values a caller can read rather than facts a caller must know:
+
+| | |
 |---|---|
-| `kit/fsx`, `kit/archive`, `kit/hashtree`, `kit/lock` | **Test assumptions.** They assert that a file with mode `0000` cannot be read and a directory with no write bit cannot be written. Windows does not honour POSIX mode bits that way, so the operation *succeeds* and the test reports a failure that is not one. |
-| `cmd/lath` (cache, manifest) | Same cause, plus two path-shape assertions that hardcode forward slashes. |
-| `cmd/lath` (`TestBuildCompilesADefinition`) | **A real bug.** `cacheEntryPath` builds the compiled definition with no `.exe` suffix, so the runner cannot exec what it just built: *executable file not found in %PATH%*. |
-| `cmd/lath` (`isTerminal`) | **A known limitation, behaving as documented.** The `!unix` stub always answers "yes", so tests asserting that a pipe is not a terminal fail. The stub is deliberate — see `tty_other.go` — but it means `--debug` cannot refuse a session it should. |
-| `kit/proc`, `kit/scan`, `kit/session` | `pgrep`/`ps` are absent, and the session tests assume POSIX paths. |
+| `proc.SignalsSupported` | `false`. `Stop` terminates rather than asking; its grace period buys nothing, and `Result.Signalled` is never true |
+| `lock.LivenessVerifiable()` | `false`. Process start times are unreadable, so a recycled PID keeps a dead lock alive until `StaleAfter` ages it out |
+| `proc.Find`, `SignalMatching` | Report `ErrUnsupported` — they need `pgrep` |
+| The runner's hand-off | Spawns a child and forwards its exit code; Windows cannot replace a process image |
 
-So the work to support Windows is smaller than it looks and splits cleanly: **one product bug** (the `.exe` suffix), **one product limitation** (terminal detection), and a pile of tests that need to state *"this asserts POSIX permission semantics"* and skip where those do not exist — the same shape as the `pid 1` fix the Linux container forced.
+Note that `.exe` handling and the console check are *not* on that list: those are simply implemented, in `binarySuffix` and `tty_windows.go`.
 
-None of it is scheduled. It is written down so the next person to want Windows starts from a list rather than from a green tick that meant nothing.
+#### The lesson that generalises
 
-#### The first run of this workflow tested nothing
-
-Worth recording, because the failure mode is general. It ran `go test ./...` from the repository root, which fails with *"directory prefix . does not contain modules listed in go.work"* — the root is a workspace root, not a module, which this repository documents in two places and which the workflow walked straight into. `continue-on-error` then turned that setup failure into a **green job**.
-
-Two lessons, both now built in: the module-path pattern is used everywhere, and the workflow writes each suite's real `outcome` into the job summary, because `continue-on-error` makes a step's *conclusion* success no matter what happened, and a result that has to be dug out of the logs is a result nobody reads.
-
-When it passes consistently, Windows earns a place in the main CI matrix and a line in the README — in that order. A badge is a claim, and the gate is what makes a claim true.
+Three of the five runs failed on a **test asserting the platform instead of the behaviour** — `os.Geteuid() == 0` as a stand-in for "permissions are enforced", `ps` as a stand-in for "start times are readable", `strings.LastIndex(p, "/")` as a stand-in for "the directory part". Each is a list of the cases somebody thought of. The replacements ask the system: `fsprobe` writes a file and tries to read it, `lock.LivenessVerifiable` reads a start time, `filepath.Dir` knows what a separator is. A probe cannot go stale; a list of platforms always does.
 
 ## How tests are written here
 

@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/go-1.24%2B-2ea44f" alt="Requires Go 1.24 or newer">
   <img src="https://img.shields.io/badge/dependencies-zero-2ea44f" alt="Zero dependencies — kit and pipeline are stdlib only">
   <img src="https://img.shields.io/badge/coverage-87.7%25-2ea44f" alt="Statement coverage across every module: 87.7%">
-  <img src="https://img.shields.io/badge/platforms-linux%20%C2%B7%20macOS-2ea44f" alt="Supported on linux and macOS">
+  <img src="https://img.shields.io/badge/platforms-linux%20%C2%B7%20macOS%20%C2%B7%20windows-2ea44f" alt="Supported on linux, macOS and windows">
 </p>
 
 *A lath is a thin strip nailed in sequence to form the base everything else is applied to.*
@@ -345,7 +345,7 @@ A named type, for something reused or configurable, implement `Name`, `Requires`
 
 **No orchestration beyond one host at a time.** A `Runner` points at one machine. Deploying to several means iterating, and nothing coordinates them.
 
-**No Windows support yet.** It compiles for Windows on every commit, and `gh workflow run windows.yml` runs the tests there on demand: 25 of 33 packages pass today, including the whole pipeline and steps layer and the example definition. What stops it being supported is one real bug — the compiled definition is written without an `.exe` suffix, so the runner cannot exec it — one documented limitation, and a set of tests that assert POSIX permission semantics Windows does not have. [`docs/TESTING.md`](docs/TESTING.md) has the breakdown. What is already known to differ: the runner cannot replace its own process image, so it spawns a child and forwards the exit code instead of `exec`; terminal detection is a stub that always answers yes, which affects `--debug`; `proc.Find` needs `pgrep` and reports `ErrUnsupported`; and `kit/lock` falls back to `StaleAfter` because it cannot verify liveness. Deploying *to* a Linux host from a Windows machine is the plausible first target, and none of the above blocks it — it just has not been done.
+**Windows differs in ways worth knowing, though it is supported.** There are no signals there, so stopping a process terminates it instead of asking — `proc.SignalsSupported` reports that, and `Stop`'s grace period buys nothing. The runner cannot replace its own process image, so it spawns a child and forwards the exit code rather than calling `exec`. `proc.Find` needs `pgrep` and reports `ErrUnsupported`. And `kit/lock` cannot read process start times, so a lock is governed by `StaleAfter` rather than by liveness — `lock.LivenessVerifiable()` says so at run time.
 
 **Nothing multi-tenant, no web UI, no daemon.** It is a binary you run.
 
@@ -369,7 +369,7 @@ A named type, for something reused or configurable, implement `Name`, `Requires`
 
 **Is it safe to point an AI agent at?** Safer than YAML, because an agent can check its own work here: it compiles, validates the wiring, dry-runs to see the exact commands, and rehearses against local Docker before anything real happens. Credentials cannot leak into what it reads — `secret.Value` closes every formatting path. See [`docs/AI.md`](docs/AI.md).
 
-**Which platforms does it run on?** Linux and macOS, on both arm64 and amd64 — the full gate runs on each, so "supported" means something checked rather than assumed; [`docs/TESTING.md`](docs/TESTING.md) has the measurements. **Windows is not supported yet**: it compiles, and every commit proves that, but nothing runs there. See [What it does not do](#what-it-does-not-do). The deploy *targets* are separate and are whatever your `Runner` points at, so deploying from macOS to a Linux server is the ordinary case.
+**Which platforms does it run on?** Linux, macOS and Windows. The full gate runs on all three in CI, so "supported" means something checked rather than assumed, and [`docs/TESTING.md`](docs/TESTING.md) has the measurements. One difference is worth knowing: Windows has no signals, so stopping a process terminates it rather than asking politely — `proc.SignalsSupported` reports that, and `Stop`'s grace period buys nothing there. The deploy *targets* are separate and are whatever your `Runner` points at, so deploying from macOS to a Linux server is the ordinary case.
 
 ## Docs
 

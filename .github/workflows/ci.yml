@@ -22,15 +22,13 @@ concurrency:
 
 jobs:
   check:
-    # Both supported platforms run the FULL gate, because "supported" has to
-    # mean something that was checked. Windows is not here on purpose: it
-    # compiles — `crosscheck`, inside the gate, proves that on every run — but
-    # nothing has been run or tested there, and a green Windows job would
-    # advertise a support level that does not exist.
+    # Every supported platform runs the FULL gate, because "supported" has to
+    # mean something that was checked. Windows joined this matrix the day it
+    # passed, not the day it compiled — see docs/TESTING.md for what that took.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
