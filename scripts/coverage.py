@@ -23,6 +23,10 @@ Modes:
   --badge     rewrite the README's coverage badge to the measured number
   --check     exit non-zero if the README badge disagrees with reality
 """
+# Files are opened as UTF-8 explicitly, never with the platform default:
+# Python uses the locale encoding, which is cp1252 on Windows, and every
+# document here contains characters it cannot decode. The gate died on an em
+# dash the first time it ran there.
 import argparse
 import os
 import re
@@ -80,7 +84,7 @@ def measure(verbose: bool) -> tuple[float, list[tuple[str, float]], list[str]]:
             env = {**os.environ, **extra_env}
             result = subprocess.run(
                 ["go", "test", "-coverprofile=" + path, "-covermode=set", *patterns],
-                cwd=cwd, env=env, capture_output=True, text=True,
+                cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8",
             )
             if verbose or result.returncode != 0:
                 sys.stdout.write(result.stdout)
@@ -99,7 +103,7 @@ def measure(verbose: bool) -> tuple[float, list[tuple[str, float]], list[str]]:
             # percentages: the percentages are per package and cannot be
             # combined without their weights.
             if os.path.exists(path):
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     for line in f:
                         if match := PROFILE_LINE.match(line.strip()):
                             statements, count = int(match.group(2)), int(match.group(3))
@@ -128,7 +132,7 @@ def badge_markdown(percent: float) -> str:
 
 def readme_badge() -> str | None:
     """The coverage badge currently in the README, or None if there is none."""
-    with open(os.path.join(ROOT, "README.md")) as f:
+    with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as f:
         match = BADGE.search(f.read())
     return match.group(0) if match else None
 
@@ -136,7 +140,7 @@ def readme_badge() -> str | None:
 def write_badge(percent: float) -> bool:
     """Rewrite the README's coverage badge. Returns whether anything changed."""
     path = os.path.join(ROOT, "README.md")
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
     updated, count = BADGE.subn(badge_markdown(percent), content)
     if count == 0:
@@ -144,7 +148,7 @@ def write_badge(percent: float) -> bool:
         sys.exit(2)
     if updated == content:
         return False
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(updated)
     return True
 

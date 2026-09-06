@@ -12,6 +12,10 @@ exists, so a name that is not in the API is a defect. The design documents
 considered and renamed or rejected, and each carries a mapping table saying so.
 Checking them would report their entire point as an error.
 """
+# Files are opened as UTF-8 explicitly, never with the platform default:
+# Python uses the locale encoding, which is cp1252 on Windows, and every
+# document here contains characters it cannot decode. The gate died on an em
+# dash the first time it ran there.
 import glob
 import os
 import re
@@ -60,7 +64,7 @@ def kit_count_is_honest() -> list[str]:
         d for d in os.listdir(kit)
         if os.path.isdir(os.path.join(kit, d)) and is_public(d)
     ])
-    with open(index) as f:
+    with open(index, encoding="utf-8") as f:
         match = KIT_COUNT.search(f.read())
     if not match:
         return [f"docs/kit/README.md no longer states a package count (expected {actual})"]
@@ -74,7 +78,7 @@ def exported(module: str, pkg: str) -> set[str]:
     """Every exported name in one package, including grouped const/var blocks."""
     out = subprocess.run(
         ["go", "doc", "-all", "./" + pkg if pkg else "."],
-        cwd=os.path.join(ROOT, module), capture_output=True, text=True,
+        cwd=os.path.join(ROOT, module), capture_output=True, text=True, encoding="utf-8",
     ).stdout
     syms = set(re.findall(r"^(?:func|type|var|const)\s+([A-Z]\w*)", out, re.M))
     # Grouped blocks are indented: `Name Type = value`, `Name = value`, or a
@@ -96,7 +100,7 @@ def toplevel(module: str, pkg: str) -> set[str]:
     """
     out = subprocess.run(
         ["go", "doc", "-all", "./" + pkg if pkg else "."],
-        cwd=os.path.join(ROOT, module), capture_output=True, text=True,
+        cwd=os.path.join(ROOT, module), capture_output=True, text=True, encoding="utf-8",
     ).stdout
     syms = set(re.findall(r"^(?:func|type)\s+([A-Z]\w*)", out, re.M))
     syms |= set(re.findall(r"^(?:var|const)\s+([A-Z]\w*)", out, re.M))
@@ -108,7 +112,7 @@ def toplevel(module: str, pkg: str) -> set[str]:
 def undocumented(api_by_pkg: dict[str, set[str]]) -> list[str]:
     """Exported symbols mentioned nowhere in the docs."""
     prose = "\n".join(
-        open(p).read()
+        open(p, encoding="utf-8").read()
         for p in glob.glob(os.path.join(ROOT, "docs", "**", "*.md"), recursive=True)
     )
     out = []
@@ -152,7 +156,7 @@ def main() -> int:
     bad = set()
     for scope in SCOPED_DOCS:
         for path in glob.glob(os.path.join(ROOT, scope, "**", "*.md"), recursive=True):
-            for n, line in enumerate(open(path), 1):
+            for n, line in enumerate(open(path, encoding="utf-8"), 1):
                 for pkg, sym in re.findall(r"\b([a-z][a-z0-9]*)\.([A-Z]\w*)", line):
                     if pkg in api and sym not in api[pkg]:
                         bad.add(f"{os.path.relpath(path, ROOT)}:{n}  {pkg}.{sym}")

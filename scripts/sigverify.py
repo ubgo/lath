@@ -28,6 +28,10 @@ SCOPE is docverify's: docs/kit, docs/steps, docs/pipeline. The design
 documents name identifiers that were considered and rejected; checking them
 would report their entire point as an error.
 """
+# Files are opened as UTF-8 explicitly, never with the platform default:
+# Python uses the locale encoding, which is cp1252 on Windows, and every
+# document here contains characters it cannot decode. The gate died on an em
+# dash the first time it ran there.
 import glob
 import os
 import re
@@ -85,7 +89,7 @@ def api(module: str) -> dict[str, list[str]]:
     for package in packages:
         result = subprocess.run(
             ["go", "doc", "-all", "./" + package if package else "."],
-            cwd=base, capture_output=True, text=True,
+            cwd=base, capture_output=True, text=True, encoding="utf-8",
         )
         if result.returncode != 0:
             print(f"sigverify: go doc failed for {module}/{package}:\n{result.stderr}", file=sys.stderr)
@@ -120,7 +124,7 @@ def main() -> int:
         types = receiver_types(real)
 
         for path in sorted(glob.glob(os.path.join(ROOT, docdir, "*.md"))):
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 content = f.read()
             for block in GO_BLOCK.findall(content):
                 for line in block.splitlines():
