@@ -6,10 +6,12 @@ import (
 	"testing"
 
 	"github.com/ubgo/lath/kit/fsx"
+	"github.com/ubgo/lath/kit/internal/fsprobe"
 )
 
 func TestWriteAtomic(t *testing.T) {
 	t.Parallel()
+	fsprobe.NeedsModePreservation(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 
@@ -89,6 +91,7 @@ func TestWriteAtomicFailureLeavesOriginal(t *testing.T) {
 
 func TestCopyFile(t *testing.T) {
 	t.Parallel()
+	fsprobe.NeedsModePreservation(t)
 	dir := t.TempDir()
 	src := filepath.Join(dir, "src")
 	dst := filepath.Join(dir, "dst")
@@ -121,5 +124,29 @@ func TestExists(t *testing.T) {
 	}
 	if ok, err := fsx.Exists(path); !ok || err != nil {
 		t.Errorf("present file: %v, %v; want true, nil", ok, err)
+	}
+}
+
+// TestWriteAtomicReplacesAReadOnlyFile.
+//
+// A file written 0400 — a certificate, a key, a config nobody should edit —
+// must still be updatable by the code that owns it. On Windows the read-only
+// ATTRIBUTE that mode implies makes the rename fail with "Access is denied",
+// so an atomic write could create such a file once and never replace it. On
+// unix this passes without the retry path running at all, which is why it is
+// written as a behaviour test rather than a platform one.
+func TestWriteAtomicReplacesAReadOnlyFile(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "cert.pem")
+	if err := fsx.WriteAtomic(path, []byte("first"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := fsx.WriteAtomic(path, []byte("second"), 0o400); err != nil {
+		t.Fatalf("a read-only destination could not be replaced: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != "second" {
+		t.Errorf("content = %q, %v; want the replacement", got, err)
 	}
 }

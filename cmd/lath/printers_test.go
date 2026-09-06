@@ -114,7 +114,10 @@ func TestCacheLookupFindsByHashSuffix(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(dir, "some-old-name"+cacheNameSeparator+"deadbeef")
+	// binarySuffix, because that is what a real entry is called: on Windows an
+	// entry without it is invisible to cacheLookup, which is the bug that
+	// would otherwise recompile every definition on every run.
+	want := filepath.Join(dir, "some-old-name"+cacheNameSeparator+"deadbeef"+binarySuffix)
 	if err := os.WriteFile(want, []byte("bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
