@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/ubgo/lath/pipeline"
@@ -31,6 +32,26 @@ import (
 
 // version is overridden at release time via -ldflags.
 var version = "dev"
+
+// buildVersion is what `lath version` reports.
+//
+// ldflags win when a release build set them, and the module version is the
+// fallback — because `go install github.com/ubgo/lath/cmd/lath@v0.1.0` cannot
+// pass ldflags, so every installed copy called itself "dev". A tool that
+// cannot tell you which version it is makes every bug report guesswork.
+//
+// "(devel)" is what Go reports for a build from a working tree, which is no
+// more informative than the default, so it is left as "dev".
+func buildVersion() string {
+	if version != "dev" {
+		return version
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" || info.Main.Version == "(devel)" {
+		return version
+	}
+	return info.Main.Version
+}
 
 // devEnginePath points a scaffolded definition at a local engine checkout.
 //
@@ -103,7 +124,7 @@ func run(args []string) int {
 		return exitOK
 
 	case VerbVersion:
-		fmt.Printf("lath %s\n", version)
+		fmt.Printf("lath %s\n", buildVersion())
 		return exitOK
 
 	case VerbInit:
