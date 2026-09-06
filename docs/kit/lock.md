@@ -75,6 +75,15 @@ Degradation is always toward caution: when a start time cannot be established, e
 
 The lock file is `0644` on purpose, its contents are diagnostic, not secret, and another user must be able to **read** who holds it to be told something useful. Never put a credential in `Note`.
 
-⚠️ On Windows liveness is best-effort, so a lock is governed by `StaleAfter` rather than by liveness. Documented rather than silently weaker.
+⚠️ On Windows liveness is best-effort, so a lock is governed by `StaleAfter` rather than by liveness. Documented rather than silently weaker — and **askable**: `LivenessVerifiable()` reports whether this machine can tell a live holder from a process that merely inherited its PID. It needs a process start time, which this package reads with `ps`; where that is unavailable, a recycled PID keeps a dead lock alive until `StaleAfter` ages it out.
+
+```go
+if !lock.LivenessVerifiable() {
+    // Locks here are governed by age, not by whether the holder is running.
+    // Set StaleAfter deliberately rather than relying on the default.
+}
+```
+
+Note that "is `ps` installed" is the wrong question and was tried first: `ps` exists on Windows and simply reports no start time.
 
 `Held` is advisory only: the answer can be stale the instant it returns. Use it for reporting, never for deciding whether to proceed. That is what `Acquire` is for.

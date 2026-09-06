@@ -77,6 +77,23 @@ func alive(i Info) bool {
 	return current.Truncate(time.Second).Equal(i.Started.Truncate(time.Second))
 }
 
+// LivenessVerifiable reports whether this machine can tell a live lock holder
+// from a process that merely inherited its PID.
+//
+// The distinction needs a process START TIME, which this package reads with
+// ps. Where that is unavailable — Windows, and any system whose ps does not
+// report one — liveness degrades to "a process with that PID exists", so a
+// recycled PID keeps a dead lock alive until StaleAfter ages it out.
+//
+// Exported because it changes what a CALLER should do, not just what a test
+// should assert: a tool relying on locks to prevent concurrent deploys wants
+// to know whether it is relying on liveness or on a timeout, and the answer is
+// a property of the machine rather than of the lock.
+//
+// Probes with this process, whose start time is by definition knowable if
+// anything's is.
+func LivenessVerifiable() bool { return !processStart(os.Getpid()).IsZero() }
+
 // processStart reports when a process began, or the zero time when that cannot
 // be determined on this platform.
 //

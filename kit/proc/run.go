@@ -121,11 +121,15 @@ func (p *Process) PID() int {
 }
 
 // Signal sends sig to the process.
+//
+// On a platform without signals the process is terminated instead; see
+// deliver, and GracefulStopSupported, which says whether the polite phase of
+// Stop means anything here.
 func (p *Process) Signal(sig syscall.Signal) error {
 	if p.cmd.Process == nil {
 		return nil
 	}
-	if err := p.cmd.Process.Signal(sig); err != nil {
+	if err := deliver(p.cmd.Process, sig); err != nil {
 		// Already gone is the normal case during shutdown; reporting it would
 		// add noise to every clean exit.
 		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
