@@ -68,3 +68,27 @@ func NeedsEnforcedDirectoryPermissions(t *testing.T) {
 			"(running as root, on Windows, or on a mount without permission support)")
 	}
 }
+
+// NeedsModePreservation skips the test unless this filesystem stores the mode
+// bits it is given.
+//
+// Windows keeps a single read-only attribute rather than nine permission bits,
+// so a file created 0600 reports 0666 back. A test asserting an exact mode is
+// asking a question that platform cannot answer, and the skip says so instead
+// of reporting a failure.
+func NeedsModePreservation(t *testing.T) {
+	t.Helper()
+	probe := filepath.Join(t.TempDir(), "probe")
+	const want os.FileMode = 0o600
+	if err := os.WriteFile(probe, []byte("x"), want); err != nil {
+		t.Skipf("cannot create a file to probe with: %v", err)
+	}
+	info, err := os.Stat(probe)
+	if err != nil {
+		t.Skipf("cannot stat the probe file: %v", err)
+	}
+	if info.Mode().Perm() != want {
+		t.Skipf("this filesystem does not preserve mode bits (0%o came back as 0%o)",
+			want, info.Mode().Perm())
+	}
+}

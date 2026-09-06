@@ -188,6 +188,9 @@ func TestAdvertiseClearsAStaleSocket(t *testing.T) {
 // running deploy, and filesystem permissions are the only thing scoping who
 // may attach.
 func TestDirIsOwnerOnly(t *testing.T) {
+	// The mode is the whole assertion, and Windows keeps a read-only bit
+	// rather than nine permission bits, so it cannot answer this.
+	fsprobe.NeedsModePreservation(t)
 	dir := isolate(t)
 	if _, err := session.Dir(); err != nil {
 		t.Fatal(err)

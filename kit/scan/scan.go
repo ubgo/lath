@@ -46,7 +46,16 @@ type Filter struct {
 }
 
 // matches reports whether a path passes the filter.
+//
+// The path is compared with FORWARD SLASHES regardless of platform. Include
+// and Exclude are substrings a caller writes by hand — "vendor/", "internal/",
+// "testdata" — and nobody writes them twice, once per separator. On Windows
+// the walk produces `vendor\dep.go`, so a literal match against "vendor/"
+// found nothing and every path filter silently passed everything through: a
+// scan asked to skip vendored code returned it. Normalising here means a
+// filter written once behaves the same everywhere.
 func (f Filter) matches(path string) bool {
+	path = filepath.ToSlash(path)
 	if len(f.Ext) > 0 {
 		ext := filepath.Ext(path)
 		var ok bool

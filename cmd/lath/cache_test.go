@@ -18,6 +18,10 @@ func isolateCache(t *testing.T) string {
 	t.Setenv("XDG_CACHE_HOME", dir)
 	t.Setenv("HOME", dir)
 	t.Setenv("TMPDIR", dir)
+	// Windows: os.UserCacheDir reads %LocalAppData% and ignores every variable
+	// above, so without this the isolation did nothing there and the tests ran
+	// against the real cache — "got 1 entries from an empty cache".
+	t.Setenv("LocalAppData", dir)
 	// ASK cacheDir where it landed rather than predicting it: os.UserCacheDir
 	// resolves differently per platform, ~/Library/Caches on macOS,
 	// XDG_CACHE_HOME on unix, and a test that guessed would silently write
@@ -69,7 +73,7 @@ func TestCacheEntryPathIsHashKeyed(t *testing.T) {
 	if a == b {
 		t.Fatal("two different hashes produced one path")
 	}
-	if !strings.HasSuffix(a, cacheNameSeparator+"aaaa1111") {
+	if !strings.HasSuffix(a, cacheNameSeparator+"aaaa1111"+binarySuffix) {
 		t.Errorf("path %q does not end in its hash", a)
 	}
 }

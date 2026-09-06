@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -350,7 +351,11 @@ func mustPath(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return p[:strings.LastIndex(p, "/")]
+	// filepath.Dir, not string surgery on "/": on Windows the shell resolves
+	// to C:\...\sh.exe with no forward slash in it, LastIndex returns -1, and
+	// the slice panics with "slice bounds out of range [:-1]" — a test helper
+	// taking down the whole package.
+	return filepath.Dir(p)
 }
 
 // TestCaptureComposesWithOut is the invariant the whole streaming design rests

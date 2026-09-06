@@ -83,7 +83,10 @@ func TestBuildCompilesADefinition(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = removeGenerated(generated) })
 
-	bin := filepath.Join(t.TempDir(), "definition")
+	// binarySuffix, or this test asks Windows to exec a file `go build` wrote
+	// as definition.exe — which is precisely the bug it exists to catch, so
+	// getting it wrong here would hide the thing being tested.
+	bin := filepath.Join(t.TempDir(), "definition"+binarySuffix)
 	if err := build(definition{Dir: def}, bin, os.Stderr, os.Stdout); err != nil {
 		t.Fatalf("build: %v", err)
 	}

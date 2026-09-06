@@ -104,7 +104,12 @@ func renderGoMod(goVersion, enginePath string) string {
 		// The replace points at the module's OWN directory, which is the last
 		// element of its import path. A replace aimed at the repository root
 		// would resolve nothing: the root is a workspace, not a module.
-		fmt.Fprintf(&b, "\t%s => %s\n", m, filepath.Join(enginePath, path.Base(m)))
+		//
+		// Forward slashes on every platform: this is a generated file that
+		// people read, diff and copy between machines, and go.mod accepts them
+		// everywhere. Emitting C:\src\lath\kit on Windows would make the
+		// file look wrong to everyone else and differ for no reason.
+		fmt.Fprintf(&b, "\t%s => %s\n", m, filepath.ToSlash(filepath.Join(enginePath, path.Base(m))))
 	}
 	b.WriteString(")\n")
 	return b.String()

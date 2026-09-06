@@ -62,9 +62,35 @@ func WriteAtomic(path string, data []byte, perm os.FileMode) (err error) {
 		return fmt.Errorf("fsx: closing %s: %w", tmpName, err)
 	}
 	if err = os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("fsx: renaming to %s: %w", path, err)
+		// Windows refuses to replace a destination carrying the read-only
+		// attribute, which is what Go's Chmod sets for any mode without a
+		// write bit. So a file written with 0400 — a certificate, a key, a
+		// config nobody should edit — could be created and then never
+		// atomically updated again, failing with "Access is denied" while the
+		// caller holds every permission it needs.
+		//
+		// Only attempted when the destination is genuinely non-writable, so a
+		// real permission failure is still reported as one. On unix the rename
+		// succeeds first time and this never runs.
+		if !clearReadOnly(path) {
+			return fmt.Errorf("fsx: renaming to %s: %w", path, err)
+		}
+		if err = os.Rename(tmpName, path); err != nil {
+			return fmt.Errorf("fsx: renaming to %s: %w", path, err)
+		}
 	}
 	return nil
+}
+
+// clearReadOnly makes an existing path writable, reporting whether it changed
+// anything. Used only to retry a rename that a read-only destination refused;
+// the file is about to be replaced, so nothing is lost by relaxing it.
+func clearReadOnly(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() || info.Mode().Perm()&0o200 != 0 {
+		return false
+	}
+	return os.Chmod(path, info.Mode().Perm()|0o200) == nil
 }
 
 // CopyFile copies src to dst, preserving the source's mode.
