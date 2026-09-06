@@ -376,7 +376,7 @@ A named type, for something reused or configurable, implement `Name`, `Requires`
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The full design: every trade-off, the rejected alternatives, and eight open problems.
 - [`docs/DEFINITION-ISOLATION.md`](docs/DEFINITION-ISOLATION.md), why the definition is a nested module rather than a build-constrained file, with the measurements behind it.
 - [`docs/AI.md`](docs/AI.md), working on a deploy with an agent, and a comparison table against shell scripts, GitHub Actions and Kamal.
-- [`docs/TESTING.md`](docs/TESTING.md), the gate, how coverage is measured, running the whole thing on Linux from a Mac, and what "supported platform" means here.
+- [`docs/TESTING.md`](docs/TESTING.md), the gate, how coverage is measured, running the whole thing on Linux from a Mac, what "supported platform" means here, and — the part worth reading before you trust any of it — **what the tests do not verify**.
 - [`docs/DEBUGGING.md`](docs/DEBUGGING.md), step through a pipeline one step at a time with `lath tui`.
 - [`docs/DEBUGGER.md`](docs/DEBUGGER.md), why the debugger is built the way it is.
 - [`docs/pipeline/README.md`](docs/pipeline/README.md). The engine: `Step`, `State`, `Key`, `Reporter`, and the wiring check.
