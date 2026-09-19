@@ -308,3 +308,77 @@ func TestWriteFileOwnerQuotesOwner(t *testing.T) {
 		t.Fatalf("file should still have been written: %v", err)
 	}
 }
+
+// TestWriteFileReplacesAFileTheCallerCannotWrite is the failure that stopped a
+// production deploy: the target existed, owned by root at 0644, in a directory
+// the deploy user owned. A redirect opens the EXISTING inode for writing and
+// is refused, while replacing the directory entry is permitted. The write must
+// therefore land beside the target and be renamed over it, which needs only
+// the directory, and is atomic into the bargain.
+//
+// Modelled here with a file the owner has removed its own write bit from, which
+// is refused for the same reason and needs no root.
+func TestWriteFileReplacesAFileTheCallerCannotWrite(t *testing.T) {
+	skipWithoutShell(t)
+	t.Parallel()
+	fsprobe.NeedsEnforcedPermissions(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "site.caddy")
+	if err := os.WriteFile(path, []byte("old\n"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := remotefs.WriteFile(context.Background(), nil, path, "new\n", false); err != nil {
+		t.Fatalf("an unwritable but replaceable target failed the write: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "new\n" {
+		t.Errorf("content = %q, want the new content", body)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Errorf("mode = %04o, want the requested 0644, not the old file's", got)
+	}
+}
+
+// TestWriteFileLeavesNoTemporaryBehind pins the other half of writing beside
+// the target: the directory holds exactly the file afterwards, on success AND
+// on failure. A stray temporary in a directory Caddy imports from is harmless
+// only as long as its name never matches the glob, and one left after every
+// failed attempt is litter a deploy should not produce.
+func TestWriteFileLeavesNoTemporaryBehind(t *testing.T) {
+	skipWithoutShell(t)
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file.txt")
+	if err := remotefs.WriteFile(context.Background(), nil, path, "x", false); err != nil {
+		t.Fatal(err)
+	}
+	// A directory where the final name is taken by a directory: the rename
+	// over it fails, and the temporary written first must be cleaned up.
+	blocked := filepath.Join(dir, "blocked")
+	if err := os.Mkdir(blocked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := remotefs.WriteFile(context.Background(), nil, blocked, "x", false); err == nil {
+		t.Fatal("writing over a directory succeeded")
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	if len(names) != 2 || names[0] != "blocked" || names[1] != "file.txt" {
+		t.Errorf("directory holds %v, want only [blocked file.txt]", names)
+	}
+}

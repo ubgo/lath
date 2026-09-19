@@ -36,7 +36,9 @@ func (c Client) SitePath(name string) string
 
 ⚠️ **Caddy refuses to START on an invalid configuration.** A bad file dropped into an imported directory does not merely fail to work: it takes down every OTHER site that Caddy serves the next time it restarts, which may be hours later and will look entirely unrelated to whoever deployed it.
 
-So `EnsureSite` writes the file, validates the whole configuration, and only then reloads. **On a validation failure it removes the file again**, because leaving it arms precisely that delayed failure. The directory is left as it was found, and the error carries Caddy's own diagnostic, which names the line.
+So `EnsureSite` writes the file, validates the whole configuration, and only then reloads. **On a validation failure it puts the directory back as it found it**: the previous file is restored when there was one, and the new file removed when there was not. Leaving the bad file arms precisely that delayed failure; deleting a previously good one would take a working route down to report a broken replacement. The error carries Caddy's own diagnostic, which names the line.
+
+**An identical file is not rewritten.** A site file rarely changes between deploys, and rewriting one that has not is the write most likely to be refused for a reason unrelated to the deploy: a root-owned file in a git-tracked directory, say. When the bytes already match, the write is skipped and validate and reload still run, so the route is live when `EnsureSite` returns even if the file was placed by hand and never loaded.
 
 ⚠️ **Reload, not restart.** A restart drops every connection Caddy is serving, including those belonging to other sites on a shared instance. Deploying one service should not do that to its neighbours.
 
