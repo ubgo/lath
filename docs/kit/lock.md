@@ -6,7 +6,7 @@ A single-instance guard backed by a file.
 import "github.com/ubgo/lath/kit/lock"
 ```
 
-Needs `ps` to verify liveness (best-effort on Windows, see below).
+Needs `ps` to verify liveness on unix; on Windows nothing is spawned and liveness is best-effort, see below.
 
 ## Defaults
 
@@ -84,6 +84,6 @@ if !lock.LivenessVerifiable() {
 }
 ```
 
-Note that "is `ps` installed" is the wrong question and was tried first: `ps` exists on Windows and simply reports no start time.
+Note that "is `ps` installed" is the wrong question and was tried first: `ps` exists on Windows and simply reports no start time. The Windows build therefore never runs it: each spawn cost hundreds of milliseconds for a guaranteed-empty answer, and three of them per `Acquire` once took a fail-fast refusal past a second on CI.
 
 `Held` is advisory only: the answer can be stale the instant it returns. Use it for reporting, never for deciding whether to proceed. That is what `Acquire` is for.

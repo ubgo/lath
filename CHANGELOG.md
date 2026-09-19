@@ -9,6 +9,7 @@ Each module is versioned independently, because they are independently importabl
 ### Fixed
 
 - `kit/remotefs` — a write lands in a temporary beside the target and is renamed over it, never redirected into it. Redirecting opened the existing file for writing, so a deploy user could not replace a root-owned 0644 file in a directory it owned, and a production deploy stopped at `ensure-route` with `Permission denied` while trying to write a file whose bytes had not changed. Renaming needs only the directory and is atomic. A directory at the target path is refused rather than moved into.
+- `kit/lock` — the Windows build no longer spawns `ps`. It is usually present there (Git for Windows ships MSYS's) yet cannot report a Windows process's start time, so every `Acquire` paid for up to three useless spawns capped at two seconds each, and a fail-fast refusal took 1.9s on CI. `processStart` and `isZombie` are unix-only; Windows returns the documented "unverifiable" answers without running anything.
 - `kit/caddy.EnsureSite` — skips the write when the file on disk is already byte-identical, and on a failed validation restores the previous file rather than deleting it, so a rejected replacement no longer takes a working route down.
 
 ## [kit/v0.1.0] · [pipeline/v0.1.0] · [steps/v0.1.0] · [cmd/lath/v0.1.1] — 2026-09-06
