@@ -81,9 +81,19 @@ func (c Client) SitePath(name string) string {
 // look unrelated. Validating after writing and before reloading turns that
 // into an error here.
 //
-// On a validation failure the file is removed again, so the directory is left
-// exactly as it was found. Leaving it would arm precisely the delayed failure
-// this sequence exists to prevent.
+// The file is written only when its bytes differ from what is already there.
+// A site file rarely changes between deploys, and rewriting an identical one
+// is not free: it turns over the file's owner and timestamp in a directory
+// that may be git-tracked or owned by someone else, and it is the write most
+// likely to be refused for a reason that has nothing to do with the deploy.
+// Validation and reload still run either way, so the route is live when this
+// returns even if the file was placed by hand and never loaded.
+//
+// On a validation failure the directory is put back exactly as it was found:
+// the previous file is restored when there was one, and the new file removed
+// when there was not. Leaving the bad file would arm precisely the delayed
+// failure this sequence exists to prevent; deleting a previously good one
+// would take a working route down to report a broken replacement.
 func (c Client) EnsureSite(ctx context.Context, name, content string) error {
 	if c.Container == "" {
 		return fmt.Errorf("caddy: Container is required")
@@ -94,16 +104,40 @@ func (c Client) EnsureSite(ctx context.Context, name, content string) error {
 	where := runner.OrLocal(c.Where)
 	dst := c.SitePath(name)
 
-	if err := remotefs.WriteFile(ctx, where, dst, content, false); err != nil {
-		return fmt.Errorf("caddy: writing %s: %w", dst, err)
+	previous, existed, err := readIfExists(ctx, where, dst)
+	if err != nil {
+		return fmt.Errorf("caddy: reading %s: %w", dst, err)
+	}
+	if !existed || previous != content {
+		if err := remotefs.WriteFile(ctx, where, dst, content, false); err != nil {
+			return fmt.Errorf("caddy: writing %s: %w", dst, err)
+		}
 	}
 	if err := c.Validate(ctx); err != nil {
 		// Best effort: the validation error is what the caller needs, and a
 		// failure to clean up must not replace it with a less useful one.
-		_, _ = where.Run(ctx, "rm", []string{"-f", dst})
+		if existed {
+			_ = remotefs.WriteFile(ctx, where, dst, previous, false)
+		} else {
+			_, _ = where.Run(ctx, "rm", []string{"-f", dst})
+		}
 		return err
 	}
 	return c.Reload(ctx)
+}
+
+// readIfExists returns a file's content and whether it was there at all, so
+// an absent file is an answer rather than an error.
+func readIfExists(ctx context.Context, where runner.Runner, path string) (content string, existed bool, err error) {
+	existed, err = remotefs.Exists(ctx, where, path)
+	if err != nil || !existed {
+		return "", false, err
+	}
+	body, err := remotefs.ReadFile(ctx, where, path)
+	if err != nil {
+		return "", true, err
+	}
+	return string(body), true, nil
 }
 
 // Validate reports whether the configuration Caddy would load parses.

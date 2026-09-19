@@ -52,6 +52,8 @@ err = remotefs.MkdirAll(ctx, box, "1000:1000", "/srv/app/logs", "/srv/app/artifa
 
 **The umask is set before the redirect**, so a sensitive file is never briefly readable between creation and a `chmod`.
 
+**A write lands beside the target and is renamed over it**, never redirected into it. A redirect opens the *existing* file for writing, which the file's owner decides; a rename replaces the directory entry, which the directory's owner decides. The difference is a deploy user replacing a root-owned 0644 file in a directory it owns, which is exactly how a Caddy site directory tends to look, and it once stopped a production deploy at the step that wrote the route. The rename is atomic, so a reader never sees a half-written file; the temporary is named `<path>.tmp.<pid>`, outside any `*.ext` glob the directory is read through, and removed on every failure path. A directory at the target path is refused rather than moved into.
+
 ⚠️ **`mkdir` runs *before* the umask is narrowed**, and that ordering is the subtlety. A umask of `177`, the complement of 0600, strips the execute bit from anything it creates, so a directory made under it cannot be entered and the redirect that follows fails with a permission error on a path that was just created.
 
 **The chown is best-effort.** A directory that already has the right owner, on a host where this user cannot chown, must not fail a deploy.

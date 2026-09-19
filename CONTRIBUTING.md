@@ -63,7 +63,7 @@ The body is where the reasoning goes. A commit that changes a default, reverses 
 
 ## Versioning
 
-Modules are versioned independently and are **not tagged yet**. Until they are, a definition resolves them through `replace` directives pointing at a checkout. When tagging begins: a module tags by directory path (`kit/v0.2.0`), which the Go module proxy requires; the runner tags bare.
+Modules are versioned independently. A library module tags by directory path (`kit/v0.1.1`), which the Go module proxy requires; the runner tags as `cmd/lath/v0.1.1`. A fix in `kit` alone needs only a `kit` tag: `steps` and `cmd/lath` require `kit` at a minimum version, and a definition that asks for a newer one gets it by minimal version selection. Tag `pipeline` or `steps` only when they changed.
 
 ## Reporting a bug
 

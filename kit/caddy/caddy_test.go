@@ -2,6 +2,7 @@ package caddy_test
 
 import (
 	"context"
+	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestSitePathAddsTheSuffixCaddyImportsOn(t *testing.T) {
 // hours later and looking unrelated.
 func TestEnsureSiteValidatesBeforeReloading(t *testing.T) {
 	t.Parallel()
-	r := &runner.Fake{}
+	r := &runner.Fake{Reply: noSiteOnDisk()}
 	c := caddy.Client{Container: "caddy", SitesDir: "/srv/sites", Where: r}
 
 	if err := c.EnsureSite(context.Background(), "api.example.com", "example.com {\n}\n"); err != nil {
@@ -42,7 +43,7 @@ func TestEnsureSiteValidatesBeforeReloading(t *testing.T) {
 			order = append(order, "validate")
 		case strings.Contains(cmd, "caddy reload"):
 			order = append(order, "reload")
-		case strings.Contains(cmd, "/srv/sites/api.example.com.caddy"):
+		case strings.Contains(cmd, "base64 -d"):
 			order = append(order, "write")
 		}
 	}
@@ -57,9 +58,9 @@ func TestEnsureSiteValidatesBeforeReloading(t *testing.T) {
 // come back.
 func TestEnsureSiteRemovesAFileItCouldNotValidate(t *testing.T) {
 	t.Parallel()
-	r := &runner.Fake{Reply: []runner.Scripted{
-		{Match: "caddy validate", Stderr: "Caddyfile:3: unrecognized directive: revers_proxy", Exit: 1},
-	}}
+	r := &runner.Fake{Reply: append(noSiteOnDisk(), runner.Scripted{
+		Match: "caddy validate", Stderr: "Caddyfile:3: unrecognized directive: revers_proxy", Exit: 1,
+	})}
 	c := caddy.Client{Container: "caddy", SitesDir: "/srv/sites", Where: r}
 
 	err := c.EnsureSite(context.Background(), "api.example.com", "bad config")
@@ -116,5 +117,94 @@ func TestReloadNotRestart(t *testing.T) {
 	}
 	if strings.Contains(got, "docker restart") || strings.Contains(got, "caddy stop") {
 		t.Errorf("the configuration was applied by restarting: %q", got)
+	}
+}
+
+// noSiteOnDisk scripts the fake so the site file is absent: `test -e` fails,
+// which remotefs reads as an answer rather than an error. A bare fake exits 0
+// for everything and therefore claims every file exists.
+func noSiteOnDisk() []runner.Scripted {
+	return []runner.Scripted{{Match: "test -e", Exit: 1}}
+}
+
+// siteOnDisk scripts the fake so the site file appears to exist with the given
+// content: `test -e` succeeds and `base64 <` returns it encoded, which is how
+// remotefs reads a file back.
+func siteOnDisk(content string) []runner.Scripted {
+	return []runner.Scripted{
+		{Match: "test -e"},
+		{Match: "base64 <", Stdout: base64.StdEncoding.EncodeToString([]byte(content)) + "\n"},
+	}
+}
+
+// TestEnsureSiteSkipsAnIdenticalFile. The write most likely to be refused is
+// the one that changes nothing: a root-owned file in a git-tracked directory,
+// byte-identical to what the deploy wants. It is not written. Validation and
+// reload still run, because the route must be live when this returns.
+func TestEnsureSiteSkipsAnIdenticalFile(t *testing.T) {
+	t.Parallel()
+	const site = "api.example.com {\n}\n"
+	r := &runner.Fake{Reply: siteOnDisk(site)}
+	c := caddy.Client{Container: "caddy", SitesDir: "/srv/sites", Where: r}
+
+	if err := c.EnsureSite(context.Background(), "api.example.com", site); err != nil {
+		t.Fatal(err)
+	}
+	if r.Ran("base64 -d") {
+		t.Errorf("an identical file was rewritten: %v", r.Commands())
+	}
+	if !r.Ran("caddy validate") || !r.Ran("caddy reload") {
+		t.Errorf("the configuration was not applied: %v", r.Commands())
+	}
+}
+
+// TestEnsureSiteRewritesAChangedFile is the other half: a difference of one
+// byte is a write. Without this the skip above could quietly become "never
+// write when the file exists".
+func TestEnsureSiteRewritesAChangedFile(t *testing.T) {
+	t.Parallel()
+	r := &runner.Fake{Reply: siteOnDisk("api.example.com {\n}\n")}
+	c := caddy.Client{Container: "caddy", SitesDir: "/srv/sites", Where: r}
+
+	if err := c.EnsureSite(context.Background(), "api.example.com", "api.example.com {\n\tlog\n}\n"); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Ran("base64 -d") {
+		t.Errorf("a changed file was not written: %v", r.Commands())
+	}
+}
+
+// TestEnsureSiteRestoresThePreviousFileItCouldNotValidate. Removing the file
+// is right only when there was none: a route that worked before this deploy
+// must still work after the deploy is rejected, or a broken replacement takes
+// a live site down while reporting only that it was broken.
+func TestEnsureSiteRestoresThePreviousFileItCouldNotValidate(t *testing.T) {
+	t.Parallel()
+	const previous = "api.example.com {\n}\n"
+	reply := append(siteOnDisk(previous), runner.Scripted{
+		Match: "caddy validate", Stderr: "Caddyfile:3: unrecognized directive: revers_proxy", Exit: 1,
+	})
+	r := &runner.Fake{Reply: reply}
+	c := caddy.Client{Container: "caddy", SitesDir: "/srv/sites", Where: r}
+
+	if err := c.EnsureSite(context.Background(), "api.example.com", "bad config"); err == nil {
+		t.Fatal("an invalid configuration was accepted")
+	}
+	if r.Ran("rm -f /srv/sites/api.example.com.caddy") {
+		t.Errorf("a previously good route was deleted: %v", r.Commands())
+	}
+	// Two writes: the new content, then the previous content put back. The
+	// fake cannot see stdin, so the count is the evidence.
+	var writes int
+	for _, cmd := range r.Commands() {
+		if strings.Contains(cmd, "base64 -d") {
+			writes++
+		}
+	}
+	if writes != 2 {
+		t.Errorf("%d write(s), want the new file and then the restored one: %v", writes, r.Commands())
+	}
+	if r.Ran("caddy reload") {
+		t.Error("an invalid configuration was reloaded anyway")
 	}
 }

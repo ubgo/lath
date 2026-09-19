@@ -28,6 +28,10 @@ const (
 	Shell = "sh"
 	// dirMode is applied to directories this package creates.
 	dirMode = 0o755
+	// tempSuffix is appended, with the shell's pid, to the target path to name
+	// the temporary a write lands in before being renamed over the target.
+	// Unquoted on purpose: $$ must be expanded by the target's shell.
+	tempSuffix = ".tmp.$$"
 )
 
 // The two modes WriteFile chooses between, exported for the same reason
@@ -99,12 +103,33 @@ func WriteFileOwner(ctx context.Context, r runner.Runner, path, content string, 
 	// The umask still applies to the file, which is what matters: it is set
 	// before the redirect, so the file is never briefly readable between
 	// creation and a chmod.
-	script := fmt.Sprintf("mkdir -p -- %s && umask %s && base64 -d > %s",
-		Quote(Dir(path)), umask, Quote(path))
+	//
+	// The bytes land in a temporary beside the target and are renamed over
+	// it, never redirected into it. A redirect opens the EXISTING file for
+	// writing, which the target's owner decides; a rename replaces the
+	// directory entry, which the directory's owner decides. The difference is
+	// a deploy user rewriting a root-owned file in a directory it owns, and
+	// it stopped a production deploy at the step that wrote the route. The
+	// rename is also atomic, so a reader, Caddy importing the directory, say,
+	// never sees a half-written file. The temporary carries the umask'd mode,
+	// which mv preserves, so the invariant above holds for it as well.
+	//
+	// The temporary is removed on every failure path, so a full disk or a
+	// refused rename does not leave litter behind on each attempt. Its name
+	// ends in the process id rather than the target's extension, which keeps
+	// it outside any `*.ext` glob the directory is read through.
+	//
+	// A directory at the target is refused up front: mv would otherwise move
+	// the temporary INTO it, reporting success for a file that landed
+	// somewhere else under a name nobody asked for.
+	script := fmt.Sprintf("mkdir -p -- %s && { [ ! -d %s ] || { echo %s >&2; exit 1; }; }"+
+		" && umask %s && t=%s%s && { base64 -d > \"$t\"",
+		Quote(Dir(path)), Quote(path), Quote(path+": is a directory"), umask, Quote(path), tempSuffix)
 	if owner != "" {
-		script += fmt.Sprintf(" && { chown %s -- %s 2>/dev/null || true; }",
-			Quote(owner), Quote(path))
+		script += fmt.Sprintf(" && { chown %s -- \"$t\" 2>/dev/null || true; }",
+			Quote(owner))
 	}
+	script += fmt.Sprintf(" && mv -f -- \"$t\" %s; } || { rm -f -- \"$t\"; exit 1; }", Quote(path))
 
 	// The bytes appear only on stdin, never in argv, so they stay out of the
 	// process list and any shell history.
