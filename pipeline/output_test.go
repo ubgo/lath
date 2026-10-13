@@ -190,7 +190,7 @@ func TestStepsCanStreamThroughState(t *testing.T) {
 	r := &collectingReporter{}
 	step := pipeline.Func{Label: "run-something", Do: func(_ context.Context, s *pipeline.State) error {
 		w := s.Output()
-		defer w.Close()
+		defer func() { _ = w.Close() }()
 		_, err := w.Write([]byte("line one\nline two\n"))
 		return err
 	}}
@@ -217,7 +217,7 @@ func TestPassthroughSeesThroughTheDebuggerWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	pipeline.YieldTerminal()
 	t.Cleanup(pipeline.ResetTerminalYield)
@@ -242,7 +242,7 @@ func TestPassthroughRefusesWhileADebuggerOwnsTheScreen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	pipeline.ResetTerminalYield()
 	s := pipeline.NewState(pipeline.ModeExecute, pipeline.NewTextReporter(f),
@@ -259,8 +259,8 @@ func TestPassthroughRefusesAPipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
-	defer w.Close()
+	defer func() { _ = r.Close() }()
+	defer func() { _ = w.Close() }()
 
 	pipeline.ResetTerminalYield()
 	s := pipeline.NewState(pipeline.ModeExecute, pipeline.NewTextReporter(w))

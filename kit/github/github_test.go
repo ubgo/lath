@@ -62,22 +62,22 @@ func TestEnsureReleaseCreatesThenIsIdempotent(t *testing.T) {
 	var posts, patches atomic.Int32
 
 	c := stub(t, func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet:
+		switch r.Method {
+		case http.MethodGet:
 			if cur := stored.Load(); cur != nil {
 				_ = json.NewEncoder(w).Encode(cur)
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"message":"Not Found"}`))
-		case r.Method == http.MethodPost:
+		case http.MethodPost:
 			posts.Add(1)
 			var got github.Release
 			_ = json.NewDecoder(r.Body).Decode(&got)
 			got.ID = 42
 			stored.Store(&got)
 			_ = json.NewEncoder(w).Encode(got)
-		case r.Method == http.MethodPatch:
+		case http.MethodPatch:
 			patches.Add(1)
 			var got github.Release
 			_ = json.NewDecoder(r.Body).Decode(&got)

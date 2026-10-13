@@ -156,7 +156,7 @@ func matchFile(path string, pattern *regexp.Regexp) ([]Hit, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan: %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var hits []Hit
 	sc := bufio.NewScanner(f)

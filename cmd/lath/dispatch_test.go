@@ -108,8 +108,8 @@ func TestDebugPreflightRefusesWithoutATerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
-	defer w.Close()
+	defer func() { _ = r.Close() }()
+	defer func() { _ = w.Close() }()
 
 	origIn, origOut := os.Stdin, os.Stdout
 	os.Stdin, os.Stdout = r, w
@@ -131,8 +131,8 @@ func TestIsTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
-	defer w.Close()
+	defer func() { _ = r.Close() }()
+	defer func() { _ = w.Close() }()
 	if isTerminal(r) || isTerminal(w) {
 		t.Error("a pipe was reported as a terminal")
 	}
@@ -141,7 +141,7 @@ func TestIsTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if isTerminal(f) {
 		t.Error("a regular file was reported as a terminal")
 	}
@@ -236,8 +236,7 @@ func TestRunInitThenList(t *testing.T) {
 		t.Fatalf("init exited %d", code)
 	}
 
-	var out string
-	out = captureOutput(t, func() { code = run([]string{string(VerbList)}) })
+	out := captureOutput(t, func() { code = run([]string{string(VerbList)}) })
 	if code != exitOK {
 		t.Errorf("list exited %d:\n%s", code, out)
 	}

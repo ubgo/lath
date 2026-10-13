@@ -373,7 +373,7 @@ func TestFinishReceivesTheFailure(t *testing.T) {
 type redacting struct{ plaintext string }
 
 func (redacting) String() string               { return "redacting(hidden)" }
-func (r redacting) Format(f fmt.State, _ rune) { fmt.Fprint(f, r.String()) }
+func (r redacting) Format(f fmt.State, _ rune) { _, _ = fmt.Fprint(f, r.String()) }
 
 // TestDisplayCannotLeakARedactedValue is a redaction claim, so it gets a test.
 // State.Display renders through fmt precisely so a value that closes its own

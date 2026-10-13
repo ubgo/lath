@@ -112,7 +112,7 @@ func attachTo(chosen session.Session) int {
 		fmt.Fprintln(os.Stderr, "      the run may have finished; try lath tui again")
 		return exitInternalErr
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 
 	return drivePanel(cli, debug.Event{}, false, chosen)
 }
@@ -544,7 +544,7 @@ func (p *panel) render() {
 			b.WriteString(wrap(d, "        ", width))
 		}
 		if n := p.dropped[s.Position]; n > 0 {
-			b.WriteString(fmt.Sprintf("          … %d earlier line(s), see the log\n", n))
+			fmt.Fprintf(&b, "          … %d earlier line(s), see the log\n", n)
 		}
 		for _, o := range p.output[s.Position] {
 			b.WriteString(wrap(o, "          ", width))

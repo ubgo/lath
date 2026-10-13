@@ -17,7 +17,7 @@ func connectedPair(t *testing.T) (*debug.Server, *debug.Client) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	accepted := make(chan net.Conn, 1)
 	go func() {

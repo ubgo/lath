@@ -301,7 +301,7 @@ func TestHTTPOKDrainsBodies(t *testing.T) {
 		n := hits.Add(1)
 		if n < 30 {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprint(w, "not ready yet, with a body worth draining")
+			_, _ = fmt.Fprint(w, "not ready yet, with a body worth draining")
 			return
 		}
 		w.WriteHeader(http.StatusOK)

@@ -143,7 +143,7 @@ func TestRequestFailsOnARejection(t *testing.T) {
 			t.Parallel()
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(status)
-				fmt.Fprint(w, "upstream dial address is not valid")
+				_, _ = fmt.Fprint(w, "upstream dial address is not valid")
 			}))
 			defer srv.Close()
 

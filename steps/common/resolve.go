@@ -48,7 +48,7 @@ func (ResolveEnv) Replayable() bool { return true }
 // Validate checks the author-supplied configuration.
 func (e ResolveEnv) Validate() error {
 	if e.Environment == "" {
-		return fmt.Errorf("Environment is required")
+		return fmt.Errorf("the Environment field is required")
 	}
 	return nil
 }

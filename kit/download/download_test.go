@@ -36,7 +36,7 @@ func serve(t *testing.T, handler http.HandlerFunc) string {
 
 func TestFetchesAndVerifies(t *testing.T) {
 	t.Parallel()
-	url := serve(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, payload) })
+	url := serve(t, func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, payload) })
 	dst := filepath.Join(t.TempDir(), "tool")
 
 	if err := download.ToFile(context.Background(), url, dst, download.SHA256(digestOf(payload))); err != nil {
@@ -56,7 +56,7 @@ func TestFetchesAndVerifies(t *testing.T) {
 // step would find it and assume it is good.
 func TestChecksumMismatchWritesNothing(t *testing.T) {
 	t.Parallel()
-	url := serve(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "TAMPERED PAYLOAD") })
+	url := serve(t, func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, "TAMPERED PAYLOAD") })
 	dst := filepath.Join(t.TempDir(), "tool")
 
 	err := download.ToFile(context.Background(), url, dst, download.SHA256(digestOf(payload)))
@@ -76,7 +76,7 @@ func TestChecksumMismatchWritesNothing(t *testing.T) {
 // release page, often uppercase, often with stray whitespace, still works.
 func TestChecksumIsCaseAndSpaceInsensitive(t *testing.T) {
 	t.Parallel()
-	url := serve(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, payload) })
+	url := serve(t, func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, payload) })
 	for _, form := range []string{
 		digestOf(payload),
 		strings.ToUpper(digestOf(payload)),
@@ -91,7 +91,7 @@ func TestChecksumIsCaseAndSpaceInsensitive(t *testing.T) {
 
 func TestNoChecksumStillWorks(t *testing.T) {
 	t.Parallel()
-	url := serve(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, payload) })
+	url := serve(t, func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, payload) })
 	dst := filepath.Join(t.TempDir(), "tool")
 	if err := download.ToFile(context.Background(), url, dst); err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestHeadersAreSent(t *testing.T) {
 	url := serve(t, func(w http.ResponseWriter, r *http.Request) {
 		gotAuth.Store(r.Header.Get("Authorization"))
 		gotAccept.Store(r.Header.Get("Accept"))
-		fmt.Fprint(w, payload)
+		_, _ = fmt.Fprint(w, payload)
 	})
 	dst := filepath.Join(t.TempDir(), "tool")
 	if err := download.ToFile(context.Background(), url, dst,
@@ -152,7 +152,7 @@ func TestRedirectsAreFollowedButBounded(t *testing.T) {
 		t.Parallel()
 		var final string
 		mux := http.NewServeMux()
-		mux.HandleFunc("/final", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, payload) })
+		mux.HandleFunc("/final", func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, payload) })
 		mux.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, final+"/final", http.StatusFound)
 		})
@@ -195,7 +195,7 @@ func TestCancellation(t *testing.T) {
 	t.Parallel()
 	url := serve(t, func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(10 * time.Second)
-		fmt.Fprint(w, payload)
+		_, _ = fmt.Fprint(w, payload)
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(100 * time.Millisecond); cancel() }()

@@ -106,7 +106,7 @@ func TestPrefixWithLogFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var term bytes.Buffer
 	// The real shape: terminal AND file, prefixed.

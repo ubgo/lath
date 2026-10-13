@@ -94,10 +94,10 @@ func scan(dir string) (definition, error) {
 	// version ("dev") no matter how many times it is rebuilt. Costing one extra
 	// compile after reinstalling an identical binary is a trivial price for
 	// never running a stale one.
-	fmt.Fprintf(h, "lath\x00%s\x00%s\x00", version, goVersionString())
+	_, _ = fmt.Fprintf(h, "lath\x00%s\x00%s\x00", version, goVersionString())
 	if exe, err := os.Executable(); err == nil {
 		if info, err := os.Stat(exe); err == nil {
-			fmt.Fprintf(h, "exe\x00%d\x00%d\x00", info.Size(), info.ModTime().UnixNano())
+			_, _ = fmt.Fprintf(h, "exe\x00%d\x00%d\x00", info.Size(), info.ModTime().UnixNano())
 		}
 	}
 
@@ -110,7 +110,7 @@ func scan(dir string) (definition, error) {
 		// moving bytes between files changes the hash. Hashing concatenated
 		// content alone would not. The path is RELATIVE to the definition
 		// root, so the hash does not depend on where the repository sits.
-		fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), len(content))
+		_, _ = fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), len(content))
 		h.Write(content)
 	}
 
@@ -122,7 +122,7 @@ func scan(dir string) (definition, error) {
 		return definition{}, err
 	}
 	if replaceDigest != "" {
-		fmt.Fprintf(h, "replaces\x00%s\x00", replaceDigest)
+		_, _ = fmt.Fprintf(h, "replaces\x00%s\x00", replaceDigest)
 	}
 
 	return definition{

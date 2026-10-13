@@ -446,13 +446,13 @@ func editDistance(a, b string) int {
 // a definition, and usage has to work in a repository that has none yet, which
 // is exactly when someone needs to be told `init` exists.
 func usage(w io.Writer) {
-	fmt.Fprintf(w, "usage: lath <command> [args...]\n\n")
+	_, _ = fmt.Fprintf(w, "usage: lath <command> [args...]\n\n")
 	for _, v := range VerbValues {
-		fmt.Fprintf(w, "  %-10s %s\n", v, verbDoc(v))
+		_, _ = fmt.Fprintf(w, "  %-10s %s\n", v, verbDoc(v))
 	}
-	fmt.Fprintf(w, "\n  %s %s [%s|%s]\n",
+	_, _ = fmt.Fprintf(w, "\n  %s %s [%s|%s]\n",
 		"cache", "", CacheActionPrune, CacheActionClean)
-	fmt.Fprintf(w,
+	_, _ = fmt.Fprintf(w,
 		"\nTargets are the exported functions in ./%s. They run behind `%s`, so a\n"+
 			"target may be named anything: including a word lath uses itself.\n",
 		definitionDir, VerbRun)
@@ -532,8 +532,8 @@ func isHelpFlag(s string) bool {
 func verbUsage(w io.Writer, v Verb) {
 	switch v {
 	case VerbPlan:
-		fmt.Fprintf(w, "usage: lath %s <target> [args...]\n\n", VerbPlan)
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w, "usage: lath %s <target> [args...]\n\n", VerbPlan)
+		_, _ = fmt.Fprintf(w,
 			"Lists the steps the target's pipeline would run, and runs none of them.\n\n"+
 				"Works on any definition, including one whose author never wrote a plan\n"+
 				"target: the runner sets %s=%s and the engine describes itself instead\n"+
@@ -550,8 +550,8 @@ func verbUsage(w io.Writer, v Verb) {
 			pipeline.ModeEnvVar, pipeline.ModeEnvPlan, jsonFlag, jsonFlag)
 
 	case VerbDryRun:
-		fmt.Fprintf(w, "usage: lath %s <target> [args...]\n\n", VerbDryRun)
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w, "usage: lath %s <target> [args...]\n\n", VerbDryRun)
+		_, _ = fmt.Fprintf(w,
 			"Runs the target with every pipeline forced into a dry run: each step's\n"+
 				"logic executes and reports what it WOULD do, without the side effect.\n\n"+
 				"Overrides whatever mode the definition chose, and only ever in the\n"+
@@ -559,8 +559,8 @@ func verbUsage(w io.Writer, v Verb) {
 				"the reverse.\n")
 
 	case VerbRun:
-		fmt.Fprintf(w, "usage: lath %s <target> [args...]\n\n", VerbRun)
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w, "usage: lath %s <target> [args...]\n\n", VerbRun)
+		_, _ = fmt.Fprintf(w,
 			"Runs a target from ./%s. Everything after the target name is passed to\n"+
 				"it untouched, so a target may take any arguments it likes: including\n"+
 				"ones that look like lath's own commands.\n\n"+
@@ -569,8 +569,8 @@ func verbUsage(w io.Writer, v Verb) {
 				"  lath %s              list every target\n",
 			definitionDir, VerbRun, VerbList)
 	case VerbTUI:
-		fmt.Fprintf(w, "usage: lath %s [session]\n\n", VerbTUI)
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w, "usage: lath %s [session]\n\n", VerbTUI)
+		_, _ = fmt.Fprintf(w,
 			"Steps through a pipeline one step at a time, pausing after each until\n"+
 				"you say to go on.\n\n"+
 				"  lath %s                      pick a target and step through it\n"+
@@ -586,8 +586,8 @@ func verbUsage(w io.Writer, v Verb) {
 				"declared itself safe to replay asks first.\n\n",
 			VerbTUI, VerbTUI, VerbTUI, VerbRun, debugFlag)
 	case VerbCache:
-		fmt.Fprintf(w, "usage: lath %s [%s|%s]\n\n", VerbCache, CacheActionPrune, CacheActionClean)
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w, "usage: lath %s [%s|%s]\n\n", VerbCache, CacheActionPrune, CacheActionClean)
+		_, _ = fmt.Fprintf(w,
 			"  (no action)   list cached pipelines, with the project each belongs to\n"+
 				"  %-13s remove entries whose project directory no longer exists\n"+
 				"  %-13s remove every entry\n\n"+
@@ -596,27 +596,27 @@ func verbUsage(w io.Writer, v Verb) {
 				"that project runs, and removing it would silently cost a rebuild.\n",
 			CacheActionPrune, CacheActionClean)
 	case VerbInit:
-		fmt.Fprintf(w, "usage: lath %s\n\n", VerbInit)
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w, "usage: lath %s\n\n", VerbInit)
+		_, _ = fmt.Fprintf(w,
 			"Scaffolds ./%s with a working starter definition and its go.mod.\n\n"+
 				"Takes no arguments. Refuses if the directory already exists, because a\n"+
 				"definition holds real deploy logic.\n",
 			definitionDir)
 	case VerbList:
-		fmt.Fprintf(w, "usage: lath %s\n\n", VerbList)
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w, "usage: lath %s\n\n", VerbList)
+		_, _ = fmt.Fprintf(w,
 			"Lists the exported functions in ./%s, grouped by subdirectory, with the\n"+
 				"first sentence of each doc comment. Run one with `lath %s <target>`.\n",
 			definitionDir, VerbRun)
 	case VerbVersion:
-		fmt.Fprintf(w, "usage: lath %s\n\nPrints the lath version.\n", VerbVersion)
+		_, _ = fmt.Fprintf(w, "usage: lath %s\n\nPrints the lath version.\n", VerbVersion)
 	case VerbHelp:
 		// The writer, not os.Stderr: verbUsage's whole contract is that it
 		// writes where it is told, and a case that ignores that is invisible
 		// until something tries to capture the output.
 		usage(w)
 	default:
-		fmt.Fprintf(w, "usage: lath %s\n\n%s\n", v, verbDoc(v))
+		_, _ = fmt.Fprintf(w, "usage: lath %s\n\n%s\n", v, verbDoc(v))
 	}
 }
 

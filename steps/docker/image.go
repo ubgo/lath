@@ -108,7 +108,7 @@ func sortedArgNames(m map[string]pipeline.Key) []string {
 // Validate checks the author-supplied configuration.
 func (b Build) Validate() error {
 	if b.Repository == "" {
-		return fmt.Errorf("Repository is required")
+		return fmt.Errorf("the Repository field is required")
 	}
 	if b.Options.Context == "" {
 		return fmt.Errorf("Options.Context is required")

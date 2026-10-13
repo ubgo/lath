@@ -73,7 +73,7 @@ func launchAndAttach(args []string) int {
 		fmt.Fprintln(os.Stderr, "lath:", err)
 		return exitInternalErr
 	}
-	defer adv.Close()
+	defer func() { _ = adv.Close() }()
 
 	logPath := filepath.Join(filepath.Dir(adv.Socket()), launchLogName)
 	logFile, err := os.Create(logPath)
@@ -81,7 +81,7 @@ func launchAndAttach(args []string) int {
 		fmt.Fprintln(os.Stderr, "lath:", err)
 		return exitInternalErr
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 
 	childArgs := append([]string{string(VerbRun)}, command...)
 	childArgs = append(childArgs,
@@ -130,7 +130,7 @@ func launchAndAttach(args []string) int {
 		// died before reaching it. Its output has already been shown live.
 		return run.status()
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 
 	// The first event is what proves there is a pipeline to step. Until it
 	// arrives this is an ordinary run, and it may never arrive: plenty of
@@ -290,11 +290,6 @@ func dialWhenReady(socket string, done <-chan struct{}) (*debug.Client, error) {
 		}
 	}
 }
-
-// logTailLines is how much of a failed run's output to show inline. Enough to
-// carry the error that stopped it, short enough not to bury the message
-// explaining what happened.
-const logTailLines = 12
 
 // tailFile returns the last n lines of a file, indented, or empty.
 func tailFile(path string, n int) string {

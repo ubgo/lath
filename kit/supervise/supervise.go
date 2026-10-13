@@ -182,7 +182,7 @@ func runLoop(ctx context.Context, p Policy, fn func(context.Context) error, oneS
 				noun, stats.Restarts+1, ErrTooManyRestarts, err)
 		}
 
-		fmt.Fprintf(p.Out, "[%s] failed after %s: %v: %s in %s\n",
+		_, _ = fmt.Fprintf(p.Out, "[%s] failed after %s: %v: %s in %s\n",
 			noun, ran.Round(time.Millisecond), err, verb, backoff)
 
 		// An interruptible sleep. A plain time.Sleep here would make Ctrl-C

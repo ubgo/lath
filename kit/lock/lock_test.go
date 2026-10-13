@@ -59,7 +59,7 @@ func TestSelfCannotDoubleAcquire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.Release()
+	defer mustRelease(t, first)
 
 	_, err = lock.Acquire(context.Background(), path)
 	if !errors.Is(err, lock.ErrHeld) {
@@ -82,7 +82,7 @@ func TestFailsFastByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer held.Release()
+	defer mustRelease(t, held)
 
 	start := time.Now()
 	if _, err := lock.Acquire(context.Background(), path); !errors.Is(err, lock.ErrHeld) {
@@ -120,7 +120,7 @@ func TestWaitGivesUpAtItsDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer held.Release()
+	defer mustRelease(t, held)
 
 	start := time.Now()
 	_, err = lock.Acquire(context.Background(), path, lock.Wait(300*time.Millisecond))
@@ -140,7 +140,7 @@ func TestWaitHonoursCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer held.Release()
+	defer mustRelease(t, held)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(150 * time.Millisecond); cancel() }()
@@ -216,7 +216,7 @@ func TestLiveHolderWithMatchingStartIsHonoured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Release()
+	defer mustRelease(t, l)
 
 	if l.Info().Started.IsZero() {
 		t.Skip("this platform could not report a process start time")
@@ -322,7 +322,7 @@ func TestReadAndHeld(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Release()
+	defer mustRelease(t, l)
 
 	info, err := lock.Read(path)
 	if err != nil {
@@ -416,7 +416,7 @@ func TestLockPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Release()
+	defer mustRelease(t, l)
 	if l.Path() != p {
 		t.Errorf("Path() = %q, want %q", l.Path(), p)
 	}
@@ -467,7 +467,7 @@ func TestStaleAfterGovernsAnotherHostsLock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("a day-old remote lock was not reclaimed: %v", err)
 		}
-		defer l.Release()
+		defer mustRelease(t, l)
 	})
 }
 
@@ -479,7 +479,7 @@ func TestALiveHolderIsNeverReclaimedByAge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer held.Release()
+	defer mustRelease(t, held)
 
 	// Even with a staleness window of a nanosecond, a live holder holds.
 	if _, err := lock.Acquire(context.Background(), p, lock.StaleAfter(time.Nanosecond)); !errors.Is(err, lock.ErrHeld) {
@@ -496,7 +496,7 @@ func TestStaleAfterDoesNotReclaimAFreshLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer held.Release()
+	defer mustRelease(t, held)
 
 	if _, err := lock.Acquire(context.Background(), p, lock.StaleAfter(time.Hour)); !errors.Is(err, lock.ErrHeld) {
 		t.Errorf("err = %v, want ErrHeld: a lock taken moments ago is not stale", err)
@@ -589,5 +589,14 @@ func TestReleaseSurvivesAVanishedLockFile(t *testing.T) {
 
 	if err := lk.Release(); err != nil {
 		t.Errorf("Release on a vanished lock = %v, want nil", err)
+	}
+}
+
+// mustRelease releases l and fails the test if that errors, so a deferred
+// Release never swallows a real failure.
+func mustRelease(t *testing.T, l *lock.Lock) {
+	t.Helper()
+	if err := l.Release(); err != nil {
+		t.Errorf("Release: %v", err)
 	}
 }

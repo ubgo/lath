@@ -247,7 +247,7 @@ func TestQuoteActuallyDefusesInjection(t *testing.T) {
 		t.Errorf("the shell reinterpreted the value: got %q, want %q", out, hostile)
 	}
 	if _, err := os.Stat("/tmp/lath-pwned-4f2a"); err == nil {
-		os.Remove("/tmp/lath-pwned-4f2a")
+		_ = os.Remove("/tmp/lath-pwned-4f2a")
 		t.Fatal("the injected command executed: Quote does not defuse it")
 	}
 }

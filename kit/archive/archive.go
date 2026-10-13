@@ -143,7 +143,7 @@ func addFile(tw *tar.Writer, root, path string) error {
 	if err != nil {
 		return fmt.Errorf("archive: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := io.Copy(tw, f); err != nil {
 		return fmt.Errorf("archive: reading %s: %w", path, err)
 	}
@@ -186,13 +186,13 @@ func Extract(ctx context.Context, src, dstDir string, opts ...ExtractOption) err
 	if err != nil {
 		return fmt.Errorf("archive: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return fmt.Errorf("archive: %s is not gzip: %w", src, err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	if err := os.MkdirAll(dstDir, dirPerm); err != nil {
 		return fmt.Errorf("archive: %w", err)
