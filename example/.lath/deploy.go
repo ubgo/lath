@@ -184,10 +184,6 @@ const (
 	// slow boot into a failed deploy.
 	healthTimeout = 60 * time.Second
 
-	// drainPeriod is how long the previous version keeps serving in-flight
-	// work after traffic has moved away from it.
-	drainPeriod = 30 * time.Second
-
 	// appName prefixes every container this definition manages, which is what
 	// lets StopPrevious tell our containers apart from anything else running
 	// on the box.
