@@ -7,7 +7,7 @@
   "homepage": "",
   "language": "go",
   "kind": "cli",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": {
     "name": "Aman Bansal",
     "email": "khanakia@gmail.com",

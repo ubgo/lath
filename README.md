@@ -4,7 +4,7 @@
   <a href="https://pkg.go.dev/github.com/ubgo/lath/kit"><img src="https://pkg.go.dev/badge/github.com/ubgo/lath/kit.svg" alt="Go Reference on pkg.go.dev"></a>
   <a href="https://goreportcard.com/report/github.com/ubgo/lath/kit"><img src="https://goreportcard.com/badge/github.com/ubgo/lath/kit" alt="Go Report Card"></a>
   <a href="https://github.com/ubgo/lath/actions/workflows/ci.yml"><img src="https://github.com/ubgo/lath/actions/workflows/ci.yml/badge.svg" alt="Build and test status"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-2ea44f" alt="License: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/go-1.24%2B-2ea44f" alt="Requires Go 1.24 or newer">
   <img src="https://img.shields.io/badge/dependencies-zero-2ea44f" alt="Zero dependencies — kit and pipeline are stdlib only">
   <img src="https://img.shields.io/badge/coverage-87.8%25-2ea44f" alt="Statement coverage across every module: 87.8%">
@@ -415,4 +415,4 @@ A named type, for something reused or configurable, implement `Name`, `Requires`
 
 Bug reports, pull requests and questions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the setup, the gates a change has to pass, and the one question that decides where new code goes. Security issues go to [SECURITY.md](SECURITY.md) rather than a public issue. Everyone participating is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Licensed under the [MIT License](LICENSE).
+Licensed under the [Apache License 2.0](LICENSE).
