@@ -6,6 +6,10 @@ Each module is versioned independently, because they are independently importabl
 
 ## [Unreleased]
 
+### Changed
+
+- Licensed under Apache-2.0 (was MIT), matching the rest of the ubgo libraries.
+
 ### Fixed
 
 - `kit/remotefs` — a write lands in a temporary beside the target and is renamed over it, never redirected into it. Redirecting opened the existing file for writing, so a deploy user could not replace a root-owned 0644 file in a directory it owned, and a production deploy stopped at `ensure-route` with `Permission denied` while trying to write a file whose bytes had not changed. Renaming needs only the directory and is atomic. A directory at the target path is refused rather than moved into.
