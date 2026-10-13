@@ -356,7 +356,7 @@ func (o OriginCA) Issue(ctx context.Context, hostnames []string, csrPEM string, 
 		return "", fmt.Errorf("issuing an origin certificate for %v: %w", hostnames, err)
 	}
 	if result.Certificate == "" {
-		return "", fmt.Errorf("Cloudflare accepted the request for %v but returned no certificate", hostnames)
+		return "", fmt.Errorf("the Cloudflare API accepted the request for %v but returned no certificate", hostnames)
 	}
 	return result.Certificate, nil
 }

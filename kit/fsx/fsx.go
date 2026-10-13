@@ -150,7 +150,7 @@ func CopyFileMode(src, dst string, perm os.FileMode) (err error) {
 	if err != nil {
 		return fmt.Errorf("fsx: %s: %w", src, err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
 	if err != nil {

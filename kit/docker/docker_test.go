@@ -444,7 +444,7 @@ func TestWithTerminalReplacesWithOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var streamed strings.Builder
 	fake := &runner.Fake{Reply: []runner.Scripted{{Match: "pull", Stdout: "pulled\n"}}}
@@ -549,7 +549,7 @@ func tempTerminal(t *testing.T) *os.File {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { f.Close() })
+	t.Cleanup(func() { _ = f.Close() })
 	return f
 }
 

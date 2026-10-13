@@ -164,7 +164,7 @@ func (RunOnce) Provides() []pipeline.Key { return nil }
 // Validate checks the author-supplied configuration.
 func (r RunOnce) Validate() error {
 	if len(r.Cmd) == 0 {
-		return fmt.Errorf("Cmd is required")
+		return fmt.Errorf("the Cmd field is required")
 	}
 	return nil
 }

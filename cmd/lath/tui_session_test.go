@@ -160,7 +160,7 @@ func TestDialWhenReadyAttachesOnceTheSocketAppears(t *testing.T) {
 			close(done)
 			return
 		}
-		defer ln.Close()
+		defer func() { _ = ln.Close() }()
 		srv, err := ln.Accept(context.Background(), 5*time.Second)
 		if err == nil {
 			_ = srv.Plan("p", nil)
@@ -174,7 +174,7 @@ func TestDialWhenReadyAttachesOnceTheSocketAppears(t *testing.T) {
 	if err != nil {
 		t.Fatalf("did not attach once the socket appeared: %v", err)
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 	<-done
 }
 
@@ -303,14 +303,14 @@ func TestDrivePanelRendersAndFinishes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	go func() {
 		srv, err := ln.Accept(context.Background(), 5*time.Second)
 		if err != nil {
 			return
 		}
-		defer srv.Close()
+		defer func() { _ = srv.Close() }()
 		_ = srv.Plan("ship", []pipeline.PlanEntry{
 			{Position: 1, Total: 2, Name: "one"},
 			{Position: 2, Total: 2, Name: "two"},
@@ -329,7 +329,7 @@ func TestDrivePanelRendersAndFinishes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 
 	withStdin(t, "n\n")
 	var code int

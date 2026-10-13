@@ -29,7 +29,7 @@ func TestListenAcceptAndRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	if ln.Socket() != path {
 		t.Errorf("Socket() = %q, want %q", ln.Socket(), path)
@@ -54,7 +54,7 @@ func TestListenAcceptAndRun(t *testing.T) {
 	if cli == nil {
 		t.Fatal("client did not attach")
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 
 	var log []string
 	go func() {
@@ -89,7 +89,7 @@ func TestNobodyAttaches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	started := time.Now()
 	_, err = ln.Accept(context.Background(), 150*time.Millisecond)
@@ -109,7 +109,7 @@ func TestCancelWhileWaiting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	time.AfterFunc(100*time.Millisecond, cancel)
@@ -136,7 +136,7 @@ func TestOnlyOneClientAttaches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	go func() {
 		c, err := debug.Dial(path)
@@ -148,7 +148,7 @@ func TestOnlyOneClientAttaches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	// The listener is closed once a client is accepted, so a second dial has
 	// nothing to connect to.

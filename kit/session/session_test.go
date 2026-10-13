@@ -29,7 +29,7 @@ func TestAdvertiseAndList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer a.Close()
+	defer func() { _ = a.Close() }()
 
 	if got := filepath.Dir(a.Socket()); got != dir {
 		t.Errorf("socket in %q, want %q", got, dir)
@@ -62,12 +62,12 @@ func TestTwoProjectsDoNotCollide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer a.Close()
+	defer func() { _ = a.Close() }()
 	b, err := session.Advertise(context.Background(), "/proj/billing-api|deploy local", nil)
 	if err != nil {
 		t.Fatalf("second project could not advertise the same target: %v", err)
 	}
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	if a.Socket() == b.Socket() {
 		t.Fatalf("both projects got %q", a.Socket())
@@ -89,7 +89,8 @@ func TestIDSeparatesRunsOfOneProject(t *testing.T) {
 	if session.ID(key, 100) == session.ID(key, 101) {
 		t.Error("two runs of one project share an id")
 	}
-	if session.ID(key, 100) != session.ID(key, 100) {
+	first, second := session.ID(key, 100), session.ID(key, 100)
+	if first != second {
 		t.Error("ID is not stable for the same key and pid")
 	}
 	if strings.ContainsAny(session.ID(key, 100), `/\:`) {
@@ -178,7 +179,7 @@ func TestAdvertiseClearsAStaleSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer a.Close()
+	defer func() { _ = a.Close() }()
 	if _, err := os.Stat(a.Socket()); !os.IsNotExist(err) {
 		t.Error("a stale socket survived Advertise; Listen would fail")
 	}

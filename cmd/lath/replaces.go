@@ -64,7 +64,7 @@ func localReplaceHash(defDir string) (string, error) {
 	for _, dir := range dirs {
 		// The directory is framed by its path so that two modules swapping
 		// contents changes the digest.
-		fmt.Fprintf(h, "replace\x00%s\x00", filepath.ToSlash(dir))
+		_, _ = fmt.Fprintf(h, "replace\x00%s\x00", filepath.ToSlash(dir))
 		if err := hashDirInto(h, dir); err != nil {
 			return "", err
 		}
@@ -122,7 +122,7 @@ func parseLocalReplaces(goModPath, relativeTo string) ([]string, error) {
 		}
 		return nil, fmt.Errorf("reading %s: %w", goModPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []string
 	inBlock := false
@@ -231,7 +231,7 @@ func hashDirInto(h interface{ Write([]byte) (int, error) }, dir string) error {
 		if relErr != nil {
 			rel = path
 		}
-		fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), len(content))
+		_, _ = fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), len(content))
 		if _, err := h.Write(content); err != nil {
 			return err
 		}

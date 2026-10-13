@@ -91,29 +91,29 @@ func TestWhatChangesTheDigest(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		mutate func(root string)
+		mutate func(t *testing.T, root string)
 	}{
-		{"a file's contents change", func(r string) {
-			os.WriteFile(filepath.Join(r, "a.go"), []byte("package a // edited"), 0o600)
+		{"a file's contents change", func(t *testing.T, r string) {
+			must(t, os.WriteFile(filepath.Join(r, "a.go"), []byte("package a // edited"), 0o600))
 		}},
-		{"a file is renamed, contents identical", func(r string) {
-			os.Rename(filepath.Join(r, "b.go"), filepath.Join(r, "renamed.go"))
+		{"a file is renamed, contents identical", func(t *testing.T, r string) {
+			must(t, os.Rename(filepath.Join(r, "b.go"), filepath.Join(r, "renamed.go")))
 		}},
-		{"a file is added", func(r string) {
-			os.WriteFile(filepath.Join(r, "c.go"), []byte("package c"), 0o600)
+		{"a file is added", func(t *testing.T, r string) {
+			must(t, os.WriteFile(filepath.Join(r, "c.go"), []byte("package c"), 0o600))
 		}},
-		{"a file is removed", func(r string) {
-			os.Remove(filepath.Join(r, "b.go"))
+		{"a file is removed", func(t *testing.T, r string) {
+			must(t, os.Remove(filepath.Join(r, "b.go")))
 		}},
-		{"a file moves to a subdirectory", func(r string) {
-			os.MkdirAll(filepath.Join(r, "sub"), 0o755)
-			os.Rename(filepath.Join(r, "b.go"), filepath.Join(r, "sub", "b.go"))
+		{"a file moves to a subdirectory", func(t *testing.T, r string) {
+			must(t, os.MkdirAll(filepath.Join(r, "sub"), 0o755))
+			must(t, os.Rename(filepath.Join(r, "b.go"), filepath.Join(r, "sub", "b.go")))
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			r := tree(t, base)
-			tc.mutate(r)
+			tc.mutate(t, r)
 			got, err := hashtree.Of(r, f)
 			if err != nil {
 				t.Fatal(err)
@@ -166,7 +166,8 @@ func TestMixedComposition(t *testing.T) {
 	if key("v1.0.0") == key("v1.1.0") {
 		t.Error("a tool version change did not affect the key: the stale-binary bug")
 	}
-	if key("v1.0.0") != key("v1.0.0") {
+	first, second := key("v1.0.0"), key("v1.0.0")
+	if first != second {
 		t.Error("the same inputs produced different keys")
 	}
 }
@@ -300,5 +301,14 @@ func TestTheFirstErrorWins(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "first-missing.txt") {
 		t.Errorf("err = %v; want the FIRST failure, which is nearest the cause", err)
+	}
+}
+
+// must fails the test on a setup error, so a mutation that silently did
+// nothing cannot pass as "the digest changed".
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }

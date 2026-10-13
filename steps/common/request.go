@@ -141,7 +141,7 @@ func (r Request) Validate() error {
 		return fmt.Errorf("URL is required")
 	}
 	if r.Body == nil {
-		return fmt.Errorf("Body is required: this step cannot guess what the receiver expects")
+		return fmt.Errorf("the Body field is required: this step cannot guess what the receiver expects")
 	}
 	return nil
 }

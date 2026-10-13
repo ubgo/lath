@@ -73,7 +73,7 @@ func (t *Hasher) AddFile(path string) *Hasher {
 		t.err = fmt.Errorf("hashtree: %w", err)
 		return t
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := io.Copy(t.h, f); err != nil {
 		t.err = fmt.Errorf("hashtree: reading %s: %w", path, err)
 	}
@@ -119,7 +119,7 @@ func (t *Hasher) AddFileContents(path string) *Hasher {
 		t.err = fmt.Errorf("hashtree: %w", err)
 		return t
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := io.Copy(t.h, f); err != nil {
 		t.err = fmt.Errorf("hashtree: reading %s: %w", path, err)
 	}

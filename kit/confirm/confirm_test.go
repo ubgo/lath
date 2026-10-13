@@ -19,7 +19,7 @@ func TestNonInteractiveFailsFastRatherThanHanging(t *testing.T) {
 	t.Parallel()
 	// A pipe with no data: an interactive read would block here forever.
 	pr, pw := ioPipe(t)
-	defer pw.Close()
+	defer func() { _ = pw.Close() }()
 
 	done := make(chan error, 1)
 	go func() {
@@ -40,7 +40,7 @@ func TestNonInteractiveFailsFastRatherThanHanging(t *testing.T) {
 func TestPhraseNonInteractive(t *testing.T) {
 	t.Parallel()
 	pr, pw := ioPipe(t)
-	defer pw.Close()
+	defer func() { _ = pw.Close() }()
 	err := confirm.Phrase(context.Background(), "destroy?", "prod",
 		confirm.In(pr), confirm.Out(&bytes.Buffer{}))
 	if !errors.Is(err, confirm.ErrNotInteractive) {

@@ -43,15 +43,15 @@ type TextReporter struct{ W io.Writer }
 func NewTextReporter(w io.Writer) *TextReporter { return &TextReporter{W: w} }
 
 func (r *TextReporter) StepStart(index, total int, name string) {
-	fmt.Fprintf(r.W, "→ %d/%d %s\n", index, total, name)
+	_, _ = fmt.Fprintf(r.W, "→ %d/%d %s\n", index, total, name)
 }
 
 func (r *TextReporter) StepDone(index, total int, name string, took time.Duration) {
-	fmt.Fprintf(r.W, "  ok (%s)\n", took.Round(reportPrecision))
+	_, _ = fmt.Fprintf(r.W, "  ok (%s)\n", took.Round(reportPrecision))
 }
 
 func (r *TextReporter) Detailf(format string, args ...any) {
-	fmt.Fprintf(r.W, "    "+format+"\n", args...)
+	_, _ = fmt.Fprintf(r.W, "    "+format+"\n", args...)
 }
 
 // Output writes a raw command line, indented under the step that produced it.
@@ -59,7 +59,7 @@ func (r *TextReporter) Detailf(format string, args ...any) {
 // Deeper than Detailf's indent so the two are distinguishable at a glance:
 // what a step chose to say, and what the tool it ran actually printed.
 func (r *TextReporter) Output(line string) {
-	fmt.Fprintf(r.W, "      %s\n", line)
+	_, _ = fmt.Fprintf(r.W, "      %s\n", line)
 }
 
 // reportPrecision is how far step timings are rounded before display.

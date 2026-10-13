@@ -54,13 +54,13 @@ func (Login) Replayable() bool { return true }
 // Validate checks the author-supplied configuration.
 func (l Login) Validate() error {
 	if l.Registry == "" {
-		return fmt.Errorf("Registry is required")
+		return fmt.Errorf("the Registry field is required")
 	}
 	if l.Username == "" {
-		return fmt.Errorf("Username is required")
+		return fmt.Errorf("the Username field is required")
 	}
 	if l.Password.IsZero() {
-		return fmt.Errorf("Password is required")
+		return fmt.Errorf("the Password field is required")
 	}
 	return nil
 }

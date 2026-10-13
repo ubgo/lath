@@ -95,7 +95,7 @@ func (UseImage) Replayable() bool { return true }
 // Validate checks the author-supplied configuration.
 func (u UseImage) Validate() error {
 	if u.Repository == "" {
-		return fmt.Errorf("Repository is required")
+		return fmt.Errorf("the Repository field is required")
 	}
 	switch {
 	case u.Tag == "" && u.TagFrom == "":
@@ -103,7 +103,7 @@ func (u UseImage) Validate() error {
 	case u.Tag != "" && u.TagFrom != "":
 		// Refused rather than ranked: a caller who set both has two answers in
 		// mind and no way to know which one this step would honour.
-		return fmt.Errorf("Tag and TagFrom are alternatives; set exactly one")
+		return fmt.Errorf("the Tag and TagFrom fields are alternatives; set exactly one")
 	}
 	return nil
 }

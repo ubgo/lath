@@ -58,7 +58,7 @@ func (PutFile) Replayable() bool { return true }
 // Validate checks the author-supplied configuration.
 func (p PutFile) Validate() error {
 	if p.Path == "" {
-		return fmt.Errorf("Path is required")
+		return fmt.Errorf("the Path field is required")
 	}
 	return nil
 }

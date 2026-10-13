@@ -46,7 +46,7 @@ func connPair(t *testing.T) (net.Conn, net.Conn) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	type res struct {
 		c   net.Conn
@@ -84,7 +84,7 @@ func session(t *testing.T) (*debug.Server, *debug.Client) {
 // drive runs p against srv while a goroutine answers each pause from script.
 // Returns the run's error and every event the client saw.
 func drive(t *testing.T, p pipeline.Pipeline, srv *debug.Server, cli *debug.Client,
-	answer func(c *debug.Client, e debug.Event)) (error, []debug.Event) {
+	answer func(c *debug.Client, e debug.Event)) ([]debug.Event, error) {
 	t.Helper()
 
 	var events []debug.Event
@@ -114,7 +114,7 @@ func drive(t *testing.T, p pipeline.Pipeline, srv *debug.Server, cli *debug.Clie
 	case <-time.After(5 * time.Second):
 		t.Fatal("client goroutine did not finish")
 	}
-	return err, events
+	return events, err
 }
 
 func three(log *[]string) pipeline.Pipeline {
@@ -127,7 +127,7 @@ func TestFullSessionOverAPipe(t *testing.T) {
 	t.Parallel()
 	var log []string
 	srv, cli := session(t)
-	err, events := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
+	events, err := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
 		_ = c.Send(pipeline.ActNext, e.N)
 	})
 	if err != nil {
@@ -228,7 +228,7 @@ func TestPauseCarriesEverythingTheClientRenders(t *testing.T) {
 	t.Parallel()
 	var log []string
 	srv, cli := session(t)
-	_, events := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
+	events, _ := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
 		_ = c.Send(pipeline.ActNext, e.N)
 	})
 	var paused []debug.Event
@@ -256,7 +256,7 @@ func TestRerunOverTheWire(t *testing.T) {
 	var log []string
 	srv, cli := session(t)
 	replayed := false
-	err, _ := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
+	_, err := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
 		if e.N == 2 && !replayed {
 			replayed = true
 			_ = c.Send(pipeline.ActRerun, e.N)
@@ -276,7 +276,7 @@ func TestQuitOverTheWire(t *testing.T) {
 	t.Parallel()
 	var log []string
 	srv, cli := session(t)
-	err, events := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
+	events, err := drive(t, three(&log), srv, cli, func(c *debug.Client, e debug.Event) {
 		_ = c.Send(pipeline.ActQuit, e.N)
 	})
 	if !errors.Is(err, pipeline.ErrAborted) {
@@ -334,7 +334,7 @@ func TestFailurePausesOverTheWire(t *testing.T) {
 		&step{name: "two", log: &log, fail: errors.New("i/o timeout")},
 		&step{name: "three", log: &log},
 	}}
-	_, events := drive(t, p, srv, cli, func(c *debug.Client, e debug.Event) {
+	events, _ := drive(t, p, srv, cli, func(c *debug.Client, e debug.Event) {
 		_ = c.Send(pipeline.ActNext, e.N)
 	})
 	var sawErr bool

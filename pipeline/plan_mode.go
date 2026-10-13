@@ -115,13 +115,13 @@ func printPlan(p Pipeline, planWriter io.Writer) {
 	if name == "" {
 		name = "pipeline"
 	}
-	fmt.Fprintf(planWriter, "\n%s: %d step(s), nothing executed\n\n", name, len(p.Steps))
+	_, _ = fmt.Fprintf(planWriter, "\n%s: %d step(s), nothing executed\n\n", name, len(p.Steps))
 	for _, e := range p.Plan() {
 		// Two lines at most, laid out like a CLI's own help: what the step is
 		// called and what it is for, then what it will actually do this time.
 		// The keys ride on the second line rather than the first, where they
 		// would push the summary off the edge of a terminal.
-		fmt.Fprintf(planWriter, "  %2d/%d  %-20s %s\n", e.Position, e.Total, e.Name, e.Summary)
+		_, _ = fmt.Fprintf(planWriter, "  %2d/%d  %-20s %s\n", e.Position, e.Total, e.Name, e.Summary)
 
 		var trailer []string
 		if e.Detail != "" {
@@ -134,11 +134,11 @@ func printPlan(p Pipeline, planWriter io.Writer) {
 			trailer = append(trailer, fmt.Sprintf("writes=%v", e.Provides))
 		}
 		if len(trailer) > 0 {
-			fmt.Fprintf(planWriter, "         %s\n", strings.Join(trailer, "  ·  "))
+			_, _ = fmt.Fprintf(planWriter, "         %s\n", strings.Join(trailer, "  ·  "))
 		}
 	}
 
-	fmt.Fprintf(planWriter, "\nlisted because %s=%s. Run it without that to perform it.\n",
+	_, _ = fmt.Fprintf(planWriter, "\nlisted because %s=%s. Run it without that to perform it.\n",
 		ModeEnvVar, ModeEnvPlan)
 }
 
@@ -164,8 +164,8 @@ func printPlanJSON(p Pipeline, w io.Writer) {
 	}
 	out, err := json.MarshalIndent(planJSON{Pipeline: name, Steps: p.Plan()}, "", "  ")
 	if err != nil {
-		fmt.Fprintf(w, "{\"error\":%q}\n", err.Error())
+		_, _ = fmt.Fprintf(w, "{\"error\":%q}\n", err.Error())
 		return
 	}
-	fmt.Fprintln(w, string(out))
+	_, _ = fmt.Fprintln(w, string(out))
 }

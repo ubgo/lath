@@ -485,7 +485,7 @@ func TestOutToAFileKeepsTheDescriptor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// The child asks the kernel what kind of thing its stdout is. A regular
 	// file answers yes to -f; a pipe does not.
