@@ -146,16 +146,10 @@ func tryAcquire(path string, c config) (*Lock, error) {
 		return nil, fmt.Errorf("lock: %w", err)
 	}
 
-	// O_EXCL is the actual mutual exclusion: the create either wins or reports
-	// that a file is already there. Everything else is diagnosis.
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, lockFilePerm)
+	// The exclusive create is the actual mutual exclusion: it either wins or
+	// reports that a file is already there. Everything else is diagnosis.
+	err = createExclusive(path, payload)
 	if err == nil {
-		_, writeErr := f.Write(payload)
-		closeErr := f.Close()
-		if writeErr != nil || closeErr != nil {
-			_ = os.Remove(path)
-			return nil, fmt.Errorf("lock: writing %s: %w", path, errors.Join(writeErr, closeErr))
-		}
 		return &Lock{path: path, info: self}, nil
 	}
 	if !errors.Is(err, os.ErrExist) {
@@ -178,6 +172,32 @@ func tryAcquire(path string, c config) (*Lock, error) {
 		return nil, fmt.Errorf("lock: %s (another host): %w", holder, ErrHeld)
 	}
 	return steal(path, payload, self)
+}
+
+// createExclusive creates path with payload already in it, failing with
+// os.ErrExist when path exists.
+//
+// The payload is written to a temporary file first and then hard-linked into
+// place. Creating the lock file with O_EXCL and writing afterwards leaves a
+// window in which the file exists but is empty; a racing Acquire reads that
+// as a corrupt lock, judges it stale and steals it, so two callers both win.
+// A link appears with its full contents or not at all, and fails with EEXIST
+// exactly like O_EXCL.
+func createExclusive(path string, payload []byte) (err error) {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".lock-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	_, writeErr := tmp.Write(payload)
+	chmodErr := tmp.Chmod(lockFilePerm)
+	closeErr := tmp.Close()
+	if werr := errors.Join(writeErr, chmodErr, closeErr); werr != nil {
+		return fmt.Errorf("writing %s: %w", path, werr)
+	}
+	return os.Link(tmpName, path)
 }
 
 // steal replaces a lock whose holder is gone. Written atomically so a third
