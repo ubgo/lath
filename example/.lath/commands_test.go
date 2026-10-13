@@ -109,9 +109,13 @@ func TestDryRunRehearsesTheWholePipeline(t *testing.T) {
 func TestARehearsalStopsOnAMissingCredential(t *testing.T) {
 	inARepository(t)
 	t.Setenv("DATABASE_URL", "")
-	os.Unsetenv("DATABASE_URL")
+	if err := os.Unsetenv("DATABASE_URL"); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("NATS_CREDS", "")
-	os.Unsetenv("NATS_CREDS")
+	if err := os.Unsetenv("NATS_CREDS"); err != nil {
+		t.Fatal(err)
+	}
 
 	err := DryRun(context.Background(), string(EnvironmentDev))
 	if err == nil {

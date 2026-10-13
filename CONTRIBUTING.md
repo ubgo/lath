@@ -22,10 +22,10 @@ If yes, ship the pieces and let each project say what it means. This is why ther
 go version          # 1.24 or newer
 task --list         # every command in the repository
 task build          # a development binary at bin/lath
-task check          # the gate: fmt, vet, race tests, cross-build, docs
+task check          # the gate: fmt, lint, vet, race tests, cross-build, docs
 ```
 
-There is no vendored toolchain and nothing to install beyond Go, `task`, and `python3` for the documentation gates.
+There is no vendored toolchain and nothing to install beyond Go, `task`, `golangci-lint` v2, and `python3` for the documentation gates.
 
 ## Before you open a pull request
 
@@ -34,6 +34,7 @@ Run `task check`. It must pass, and it covers more than tests:
 | Gate | What it proves |
 |---|---|
 | `fmt:check`, `go vet` | Formatting and the obvious mistakes |
+| `lint` | `golangci-lint` with the default linters on every module (`task lint` runs it alone); needs `golangci-lint` v2 on your PATH |
 | `go test -race` | Every module, including the definition module outside the workspace |
 | `crosscheck` | It still **compiles and vets** for linux, darwin and windows — vet as well as build, because `go build` skips `_test.go` files and a unix-only call in a test leaves the test binary unbuildable elsewhere. All three platforms are supported and run the full gate in CI; this task is the cheap check that catches a platform break before CI does |
 | `docverify` | Every symbol named in the reference docs exists, and every exported symbol is documented somewhere |

@@ -20,6 +20,17 @@ vars:
   # cannot reach it and every command touching it must disable workspace mode.
   DEF_DIR: example/.lath
 
+  # Every module that holds hand-written Go. golangci-lint works per module and
+  # the root is not a module, so the lint task loops over this list. The
+  # definition module (DEF_DIR) is outside the workspace and is linted with
+  # workspace mode off.
+  LINT_MODULES: cmd/lath kit pipeline steps example
+
+  # Machine-wide lock for heavy runs, so parallel sessions do not pile up on
+  # one CPU. Empty where testlock is not installed (CI), so the task still runs.
+  LOCK:
+    sh: command -v testlock || true
+
 tasks:
   default:
     desc: build, vet and test everything
@@ -44,9 +55,10 @@ tasks:
       - go build -ldflags "-X main.version=${VERSION:-dev}" -o {{.BIN}} github.com/ubgo/lath/cmd/lath
 
   check:
-    desc: "the gate — fmt, vet, race tests, across BOTH module sets"
+    desc: "the gate — fmt, lint, vet, race tests, across BOTH module sets"
     cmds:
       - task: fmt:check
+      - task: lint
       - go vet {{.PKGS}}
       - go test -race {{.PKGS}}
       # The definition module is not a workspace member, so PKGS misses it.
@@ -186,8 +198,27 @@ tasks:
     cmds:
       - 'test -z "$(gofmt -l cmd kit pipeline steps example)" || { gofmt -l cmd kit pipeline steps example; exit 1; }'
 
+  lint:
+    desc: lint every module
+    cmds:
+      - '{{.LOCK}} task lint:run'
+
+  lint:run:
+    desc: "the lint body WITHOUT the lock (called by lint through testlock; use lint)"
+    cmds:
+      # The default linter set, configured by the root .golangci.yml. Run from
+      # each module directory because golangci-lint lints one module at a time.
+      - for: { var: LINT_MODULES, split: " " }
+        cmd: cd {{.ITEM}} && golangci-lint run --config {{.TASKFILE_DIR}}/.golangci.yml ./...
+      - cd {{.DEF_DIR}} && GOWORK=off golangci-lint run --config {{.TASKFILE_DIR}}/.golangci.yml ./...
+
   test:
     desc: run tests without the race detector (faster inner loop)
+    cmds:
+      - '{{.LOCK}} task test:run'
+
+  test:run:
+    desc: "the test body WITHOUT the lock (called by test through testlock; use test)"
     cmds:
       - go test {{.PKGS}}
       - cd {{.DEF_DIR}} && GOWORK=off go test ./...

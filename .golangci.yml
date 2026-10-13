@@ -1,0 +1,4 @@
+# golangci-lint v2 config. Deliberately minimal: the default linter set, no
+# disabled rules and no exclusions for hand-written code. A finding is fixed at
+# its cause, never silenced here. Run with `task lint`, which covers every module.
+version: "2"

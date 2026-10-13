@@ -148,7 +148,7 @@ Test seams are unexported (`withTTYCheck`, a `var` instead of a `const` for a si
 
 ## Commands
 
-- `task check`. The gate: fmt, vet, race tests across every module **and** both definitions, then `crosscheck`, `docverify` and `sigverify`.
+- `task check`. The gate: fmt, lint (`golangci-lint`, default linters, every module), vet, race tests across every module **and** both definitions, then `crosscheck`, `docverify` and `sigverify`.
 - `task crosscheck`, build every module for linux, darwin and windows.
 - `task docverify` / `task sigverify`, prove the reference docs name only symbols that exist, and that every signature they SHOW is the one that exists.
 - `task test:linux`, run the whole gate on linux in docker, against the working tree. Linux and macOS are both supported and a Mac cannot check the other half; `task test:linux:shell` is the same image interactively. See [`docs/TESTING.md`](docs/TESTING.md).

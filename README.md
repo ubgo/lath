@@ -299,7 +299,7 @@ lath version
 Working on lath itself:
 
 ```sh
-task check          # the gate: fmt, vet, race tests, crosscheck, docverify, sigverify
+task check          # the gate: fmt, lint, vet, race tests, crosscheck, docverify, sigverify
 task build          # build bin/lath
 task install        # symlink bin/lath onto PATH
 task test:linux     # run the WHOLE gate on linux, in docker, before pushing
@@ -307,6 +307,7 @@ task test:linux PLATFORM=linux/amd64   # ...and on the other architecture, emula
 task cover          # coverage per package + the statement-weighted total
 task cover:badge    # rewrite the README coverage badge to the measured number
 task cover:check    # fail if that badge is stale, or coverage is below the floor
+task lint           # golangci-lint on every module
 task crosscheck     # prove it still COMPILES and VETS for linux, darwin and windows
 task docverify      # prove the docs and the API agree, in both directions
 task sigverify      # prove every signature the docs SHOW is the one that exists

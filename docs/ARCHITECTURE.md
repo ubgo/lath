@@ -375,7 +375,7 @@ Problems 4, 5 and 6 are properties of *any* portable deploy tool, not of this de
 
 ## 11 · Testing
 
-`task check` runs `gofmt`, `go vet`, and race-enabled tests across **every** module. The workspace members via the `github.com/ubgo/lath/...` module-path pattern, then the definition module separately with `GOWORK=off`, because it is outside the workspace by design and no workspace pattern can reach it. A gate that silently skips a module is worse than no gate.
+`task check` runs `gofmt`, `golangci-lint`, `go vet`, and race-enabled tests across **every** module. The workspace members via the `github.com/ubgo/lath/...` module-path pattern, then the definition module separately with `GOWORK=off`, because it is outside the workspace by design and no workspace pattern can reach it. A gate that silently skips a module is worse than no gate.
 
 What the tests pin, beyond coverage:
 

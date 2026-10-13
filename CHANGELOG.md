@@ -8,6 +8,8 @@ Each module is versioned independently, because they are independently importabl
 
 ### Changed
 
+- `task lint` runs `golangci-lint` (default linters, `.golangci.yml`) on every module and is part of `task check`.
+
 - Licensed under Apache-2.0 (was MIT), matching the rest of the ubgo libraries.
 
 ### Fixed
