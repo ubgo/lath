@@ -6,6 +6,8 @@ Each module is versioned independently, because they are independently importabl
 
 ## [Unreleased]
 
+## [kit/v0.1.2] · [steps/v0.1.1] — 2026-11-10
+
 ### Added
 
 - `kit/golang` — compiles Go binaries on the host for an image to copy, so the machine's build cache carries over instead of every image build starting cold. One `go build` for every main package, `CGO_ENABLED=0`, `-trimpath -buildvcs=false`, `-X` stamps, and `GOTOOLCHAIN` pinned to the toolchain the workspace or module names (`ReadToolchain`), so a newer local Go never builds a different binary than CI. The output folder is cleared first and every expected binary is proven present afterwards.
@@ -37,8 +39,14 @@ Every one of these fails loudly (a validation error or a failing test), none sil
 
 ### Fixed
 
-- `kit/remotefs` — a write lands in a temporary beside the target and is renamed over it, never redirected into it. Redirecting opened the existing file for writing, so a deploy user could not replace a root-owned 0644 file in a directory it owned, and a production deploy stopped at `ensure-route` with `Permission denied` while trying to write a file whose bytes had not changed. Renaming needs only the directory and is atomic. A directory at the target path is refused rather than moved into.
+- `kit/lock` — the lock file is published with its contents in one step, so a racing `Acquire` never sees it empty.
 - `kit/lock` — the Windows build no longer spawns `ps`. It is usually present there (Git for Windows ships MSYS's) yet cannot report a Windows process's start time, so every `Acquire` paid for up to three useless spawns capped at two seconds each, and a fail-fast refusal took 1.9s on CI. `processStart` and `isZombie` are unix-only; Windows returns the documented "unverifiable" answers without running anything.
+
+## [kit/v0.1.1] — 2026-09-19
+
+### Fixed
+
+- `kit/remotefs` — a write lands in a temporary beside the target and is renamed over it, never redirected into it. Redirecting opened the existing file for writing, so a deploy user could not replace a root-owned 0644 file in a directory it owned, and a production deploy stopped at `ensure-route` with `Permission denied` while trying to write a file whose bytes had not changed. Renaming needs only the directory and is atomic. A directory at the target path is refused rather than moved into.
 - `kit/caddy.EnsureSite` — skips the write when the file on disk is already byte-identical, and on a failed validation restores the previous file rather than deleting it, so a rejected replacement no longer takes a working route down.
 
 ## [kit/v0.1.0] · [pipeline/v0.1.0] · [steps/v0.1.0] · [cmd/lath/v0.1.1] — 2026-09-06
