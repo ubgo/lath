@@ -3,7 +3,7 @@ module github.com/ubgo/lath/steps
 go 1.24
 
 require (
-	github.com/ubgo/lath/kit v0.1.0
+	github.com/ubgo/lath/kit v0.1.2
 	github.com/ubgo/lath/pipeline v0.1.0
 )
 
