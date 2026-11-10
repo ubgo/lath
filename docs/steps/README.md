@@ -6,6 +6,7 @@ Thin wrappers that let the [kit](../kit/README.md) libraries participate in a `p
 common/   vendor-neutral steps, plus the shared state keys
 docker/   steps over kit/docker
 git/      steps over kit/git
+golang/   steps over kit/golang
 ```
 
 ⚠️ **These are not privileged.** lath ships them the way anyone else would ship theirs: a Go module that imports `pipeline` and implements `Step`. There is no registry to join, no interface only these can satisfy, and no build-time knowledge of them anywhere in the runner. A third-party set is structurally identical, see [`../../steps/doc.go`](../../steps/doc.go).
@@ -37,7 +38,8 @@ Defined in `common`, so both other packages and any third-party set share one vo
 | Key | Type | Provided by | Consumed by |
 |---|---|---|---|
 | `KeyCommit` | `string` | `git.ResolveCommit` | `docker.Build` |
-| `KeyBranch` | `string` | `git.ResolveCommit` | `docker.Build` (via `ArgsFromState`) |
+| `KeyRevision` | `string`, the **full** SHA | `git.ResolveCommit` | `docker.Build` (the revision label), `docker.CheckImage` (via `LabelsFromState`) |
+| `KeyBranch` | `string` | `git.ResolveCommit` | `docker.Build` (via `ArgsFromState`), `golang.Build` (via `VarsFromState`) |
 | `KeyEnv` | `string` | `common.ResolveEnv` | `docker.Start` |
 | `KeyImage` | `string` | `docker.Build` or `docker.UseImage` | `Push`, `Pull`, `RunOnce`, `Start` |
 | `KeyContainers` | `[]string` | `docker.Start` | `WaitHealthy`, `StopPrevious` |
@@ -58,14 +60,15 @@ Defined in `common`, so both other packages and any third-party set share one vo
 
 | Step | Reads | Writes |
 |---|---|---|
-| `ResolveCommit` |, | `KeyCommit`, `KeyBranch` |
+| `ResolveCommit` |, | `KeyCommit`, `KeyRevision`, `KeyBranch` |
 
 ### docker
 
 | Step | Reads | Writes |
 |---|---|---|
-| `Build` | `KeyCommit` + every key in `ArgsFromState` | `KeyImage` |
+| `Build` | `KeyCommit`, `KeyRevision` (unless `OmitRevision`) + every key in `ArgsFromState` | `KeyImage` |
 | `UseImage` | `TagFrom`, when the tag comes from state | `KeyImage` |
+| `CheckImage` | `KeyImage` + every key in `LabelsFromState` |, |
 | `Push` / `Pull` | `KeyImage` |, |
 | `Login` |, |, |
 | `RunOnce` | `KeyImage` |, |
@@ -73,6 +76,12 @@ Defined in `common`, so both other packages and any third-party set share one vo
 | `WaitHealthy` | `KeyContainers` |, |
 | `StopPrevious` | `KeyContainers` |, |
 | `Prune` |, |, |
+
+### golang
+
+| Step | Reads | Writes |
+|---|---|---|
+| `Build` | every key in `VarsFromState` |, (a folder of binaries, by path) |
 
 ## A whole deploy
 
@@ -268,6 +277,54 @@ Values from state override `Options.Args` on a name collision, and `Options` is 
 ⚠️ **A missing build arg fails silently.** The Dockerfile's `ARG` defaults win, the build succeeds, and the binary reports itself as `dev`/`unknown` with nothing raising an error. This happened in production: images shipped unstamped for as long as nobody checked. If a Dockerfile has `ARG`s that feed ldflags, wire every one of them.
 
 ⚠️ **Step-owned fields cannot be overridden.** `Name`, `Image`, `Network`, and `Build`'s `Tag` are derived from pipeline state, setting them in `Options` is refused or discarded, so a container can never be named or imaged differently from what the pipeline recorded.
+
+### Binaries built on the host
+
+A `go build` inside the image build starts from an empty build cache on every deploy. `golang.Build` compiles on the host instead, where the build cache carries over, and the Dockerfile only copies the folder:
+
+```go
+golang.Build{
+    Options: golangkit.BuildOptions{
+        Packages: []string{"./cmd/api", "./cmd/worker", "./cmd/migrate"},
+        Output:   ".docker/bin",
+        GOARCH:   "amd64",     // a local rehearsal passes runtime.GOARCH
+        Strip:    true,
+    },
+    VarsFromState: map[string]pipeline.Key{
+        golangkit.BuildinfoVersion: common.KeyBranch,
+        golangkit.BuildinfoCommit:  common.KeyCommit,
+        golangkit.BuildinfoBranch:  common.KeyBranch,
+    },
+    BuildTimeVar: golangkit.BuildinfoBuildTime,
+},
+docker.Build{Repository: "ghcr.io/acme/app", Options: dockerkit.BuildOptions{Context: ".", Dockerfile: ".docker/Dockerfile.prod"}},
+```
+
+`VarsFromState` is `ArgsFromState` for the linker: the values come from earlier steps, the bindings join `Requires()`, and a missing producer fails validation instead of shipping a binary that reports `dev`. `BuildTimeVar` is the one stamp read from the clock. An empty `Options.Dir` is the project root, the directory holding `.lath`. The toolchain is read under dry run as well, so a rehearsal refuses a repository the real build would refuse. What the build itself guarantees (a pinned toolchain, a cleared output folder, every binary proven present) is in [`kit/golang`](../kit/golang.md).
+
+The example definition uses it: [`example/.lath/deploy.go`](../../example/.lath/deploy.go).
+
+### The revision label, and checking an image built elsewhere
+
+`docker.Build` labels every image with the full commit it was built from, `org.opencontainers.image.revision` (`dockerkit.LabelRevision`), read from `KeyRevision`. The tag is the **short** commit, unique only among today's commits; the label names the source for good. It does **not** tell a clean build from a dirty one of the same commit: `git.ResolveCommit` refusing a dirty tree does that, and a label the project adds (the target a build was for) catches a rehearsal build that was allowed to be dirty. `OmitRevision` turns it off, for a pipeline whose commit does not come from `git.ResolveCommit` (it has no `KeyRevision`) or one that sets the label itself. Setting it in `Options.Labels` without `OmitRevision` is refused: two values for one label means someone expects the one that would not be stamped.
+
+⚠️ **A pipeline that sets `KeyCommit` itself and uses `Build` now needs `KeyRevision` too**, or `OmitRevision`. `Validate` says so before anything runs.
+
+That label is what `CheckImage` is for. When one job builds an image and another ships it (`docker save` in the first, `docker load` and push in the second, so the tests and the image build run side by side), the tag cannot prove the loaded image is the one built for this deploy:
+
+```go
+docker.UseImage{Repository: repo, TagFrom: common.KeyCommit, MustExist: true},
+docker.CheckImage{
+    Platform:        "linux/amd64",
+    Labels:          map[string]string{"com.acme.deploy.target": "prod"},
+    LabelsFromState: map[string]pipeline.Key{dockerkit.LabelRevision: common.KeyRevision},
+    Hint:            "build it with `lath run deploy image prod --apply` from this commit",
+},
+```
+
+The target label is the one that does the real work against a local rehearsal: same commit, same revision, but built for `local`, perhaps from a dirty tree. The revision catches an image of another commit; the platform catches a laptop architecture.
+
+It names every difference at once (`platform is linux/arm64, want linux/amd64; label … is "local", want "prod"`), so one failure says everything that is wrong, and `Hint` says what to do about it. A platform without a variant matches any variant, and both sides are normalised the way containerd does it (docker reports a real arm64 image with no variant, which is `v8`; `x86_64` is `amd64`). Under dry run it describes the check and runs nothing. Which labels prove an image is "ours" is project policy; the step only compares. Build the image with `dockerkit.BuildOptions.NoProvenance` when it travels as a file: an index with an attestation does not survive `docker save` / `docker load` whole.
 
 ## WaitHealthy, the one to read carefully
 

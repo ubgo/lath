@@ -8,6 +8,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	gitkit "github.com/ubgo/lath/kit/git"
 	"github.com/ubgo/lath/kit/runner"
@@ -46,12 +47,12 @@ func (ResolveCommit) Name() string { return "resolve-commit" }
 // Docs explains the step in a plan. See pipeline.Documented.
 func (ResolveCommit) Docs() pipeline.Docs {
 	return pipeline.Docs{
-		Summary: "read the commit and branch once, so every later stamp agrees",
+		Summary: "read the commit, its full revision and the branch once, so every later stamp agrees",
 	}
 }
 func (ResolveCommit) Requires() []pipeline.Key { return nil }
 func (ResolveCommit) Provides() []pipeline.Key {
-	return []pipeline.Key{common.KeyCommit, common.KeyBranch}
+	return []pipeline.Key{common.KeyCommit, common.KeyRevision, common.KeyBranch}
 }
 
 // Replayable reports that re-running this step is indistinguishable from
@@ -83,7 +84,19 @@ func (c ResolveCommit) Run(ctx context.Context, s *pipeline.State) error {
 		return fmt.Errorf("resolve-commit: %w", err)
 	}
 
+	revision, err := client.Revision(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve-commit: %w", err)
+	}
+	// The short form must be a prefix of the full one. If HEAD moved between
+	// the two reads, the tag and the revision label would name different
+	// commits, which is the one thing reading them here was meant to prevent.
+	if !strings.HasPrefix(revision, commit) {
+		return fmt.Errorf("resolve-commit: HEAD moved while it was being read (%s, then %s); run again", commit, revision)
+	}
+
 	pipeline.Set(s, common.KeyCommit, commit)
+	pipeline.Set(s, common.KeyRevision, revision)
 	pipeline.Set(s, common.KeyBranch, branch)
 	s.Detailf("commit=%s branch=%s", commit, branch)
 	return nil

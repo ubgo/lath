@@ -97,6 +97,25 @@ func (c Client) ShortCommit(ctx context.Context, length int) (string, error) {
 	return commit, nil
 }
 
+// Revision returns the full SHA of HEAD.
+//
+// Why both this and ShortCommit: the short form names things people read, an
+// image tag, a container, and is only unique among the commits that exist
+// today. A label that has to identify the source for good, such as the OCI
+// revision label an image carries, needs the form that can never become
+// ambiguous.
+func (c Client) Revision(ctx context.Context) (string, error) {
+	r, err := c.where.Run(ctx, Program, c.args("rev-parse", "HEAD"), c.opts()...)
+	if err := runner.Check("git rev-parse", c.where, r, err); err != nil {
+		return "", err
+	}
+	rev := strings.TrimSpace(string(r.Stdout))
+	if rev == "" {
+		return "", fmt.Errorf("git rev-parse: %w", ErrNoCommits)
+	}
+	return rev, nil
+}
+
 // Status returns the porcelain status, empty when the tree is clean.
 // DetachedHead is what Branch reports when HEAD points at a commit rather than
 // a branch. This is the normal state in CI, most checkout actions detach, so

@@ -8,6 +8,7 @@ import (
 	"github.com/ubgo/lath/steps/common"
 	"github.com/ubgo/lath/steps/docker"
 	"github.com/ubgo/lath/steps/git"
+	"github.com/ubgo/lath/steps/golang"
 )
 
 // TestReplayableClassification pins which steps declare themselves safe to
@@ -38,6 +39,8 @@ func TestReplayableClassification(t *testing.T) {
 		{docker.WaitHealthy{}, true, "observes, never changes"},
 		{docker.StopPrevious{}, true, "nothing left to stop the second time"},
 		{docker.Prune{}, true, "removes whatever is dangling now"},
+		{docker.CheckImage{}, true, "reads the image, changes nothing"},
+		{golang.Build{}, true, "same source, same binaries"},
 
 		// The two that must NOT be replayable without asking.
 		{docker.Start{}, false, "starts ANOTHER container"},
@@ -71,6 +74,7 @@ func TestEveryStepIsClassified(t *testing.T) {
 		"registry-login": true, "push-image": true, "pull-image": true,
 		"wait-healthy": true, "stop-previous": true, "prune-image": true,
 		"start-processes": true, "run-once": true,
+		"check-image": true, "build-binaries": true,
 	}
 	all := []pipeline.Step{
 		common.ResolveEnv{}, common.EnsureDir{}, common.PutFile{}, common.Request{},
@@ -78,6 +82,7 @@ func TestEveryStepIsClassified(t *testing.T) {
 		docker.Build{}, docker.Login{}, docker.Push{}, docker.Pull{},
 		docker.WaitHealthy{}, docker.StopPrevious{}, docker.Prune{},
 		docker.Start{}, docker.RunOnce{},
+		docker.CheckImage{}, golang.Build{},
 	}
 	for _, s := range all {
 		if !known[s.Name()] {
@@ -103,6 +108,7 @@ func TestEveryStepDeclaresItsWiring(t *testing.T) {
 		docker.Build{}, docker.Login{}, docker.Push{}, docker.Pull{},
 		docker.WaitHealthy{}, docker.StopPrevious{}, docker.Prune{},
 		docker.Start{}, docker.RunOnce{},
+		docker.CheckImage{}, golang.Build{},
 	}
 	known := map[pipeline.Key]bool{}
 	for _, k := range common.KeyValues {
@@ -161,6 +167,7 @@ func TestEveryStepDocumentsItself(t *testing.T) {
 		docker.Build{}, docker.Login{}, docker.Push{}, docker.Pull{},
 		docker.WaitHealthy{}, docker.StopPrevious{}, docker.Prune{},
 		docker.Start{}, docker.RunOnce{},
+		docker.CheckImage{}, golang.Build{},
 	}
 	for _, s := range all {
 		d, ok := s.(pipeline.Documented)

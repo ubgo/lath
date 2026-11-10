@@ -45,6 +45,10 @@ func inARepository(t *testing.T) {
 		}
 	}
 	t.Chdir(dir)
+	// What `lath run` sets for every target. Steps that reach the repository
+	// (golang.Build compiles relative to it) read it, and a temporary
+	// repository has no .lath for the fallback search to find.
+	t.Setenv(pipeline.RootEnvVar, dir)
 }
 
 // capture returns everything written to stdout while fn runs.
@@ -93,7 +97,7 @@ func TestDryRunRehearsesTheWholePipeline(t *testing.T) {
 	}
 	// Every step announced itself, and the ones with side effects said "would"
 	// rather than doing anything.
-	for _, want := range []string{"build-image", "migrate", "start-processes", "wait-healthy", "would"} {
+	for _, want := range []string{"build-binaries", "build-image", "migrate", "start-processes", "wait-healthy", "would"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the rehearsal never mentions %q:\n%s", want, out)
 		}

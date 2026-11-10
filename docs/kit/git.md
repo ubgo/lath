@@ -15,6 +15,7 @@ func On(r runner.Runner, dir string) Client     // nil Runner = this machine; em
 func Available() bool
 func (c Client) WithFlags(extra ...string) Client
 func (c Client) ShortCommit(ctx context.Context, length int) (string, error)
+func (c Client) Revision(ctx context.Context) (string, error)    // the full SHA of HEAD
 func (c Client) Branch(ctx context.Context) (string, error)
 func (c Client) Status(ctx context.Context) (string, error)
 func (c Client) RequireClean(ctx context.Context) error
@@ -57,6 +58,10 @@ if err := client.RequireClean(ctx); err != nil {
     return err
 }
 ```
+
+## Revision
+
+`ShortCommit` names what people read, an image tag or a container, and is unique only among the commits that exist today. `Revision` is the full SHA, for what has to identify the source for good: the OCI revision label an image carries (`docker.LabelRevision`). Both refuse an empty repository with `ErrNoCommits`.
 
 ## Branch
 

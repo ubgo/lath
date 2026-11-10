@@ -25,7 +25,7 @@ func TestKeyValuesCoversEveryKey(t *testing.T) {
 		declared[k] = true
 	}
 	for _, k := range []pipeline.Key{
-		common.KeyCommit, common.KeyEnv, common.KeyImage, common.KeyContainers,
+		common.KeyCommit, common.KeyRevision, common.KeyEnv, common.KeyImage, common.KeyContainers,
 		common.KeyRouted,
 	} {
 		if !declared[k] {

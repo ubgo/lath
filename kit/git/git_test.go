@@ -206,3 +206,32 @@ func TestAvailable(t *testing.T) {
 		t.Errorf("Available() = %v, want %v", got, want)
 	}
 }
+
+// TestRevisionIsTheFullCommit pins that Revision asks for the unabbreviated
+// SHA. A short one in a revision label is unique only among today's commits,
+// so the label could come to name two different builds.
+func TestRevisionIsTheFullCommit(t *testing.T) {
+	t.Parallel()
+	const full = "a3f1c2d0f1e2d3c4b5a69788f9e0d1c2b3a49586"
+	f := &runner.Fake{Reply: []runner.Scripted{{Match: "rev-parse", Stdout: full + "\n"}}}
+	got, err := git.On(f, "").Revision(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != full {
+		t.Errorf("Revision = %q, want %q", got, full)
+	}
+	if f.Ran("--short") {
+		t.Errorf("Revision abbreviated the commit: %v", f.Commands())
+	}
+}
+
+// TestRevisionOfAnEmptyRepositoryIsAnError pins the same refusal ShortCommit
+// makes: an empty answer would label an image with no revision at all.
+func TestRevisionOfAnEmptyRepositoryIsAnError(t *testing.T) {
+	t.Parallel()
+	f := &runner.Fake{Reply: []runner.Scripted{{Match: "rev-parse", Stdout: "\n"}}}
+	if _, err := git.On(f, "").Revision(context.Background()); !errors.Is(err, git.ErrNoCommits) {
+		t.Errorf("err = %v; want ErrNoCommits", err)
+	}
+}

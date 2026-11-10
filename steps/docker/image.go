@@ -17,7 +17,9 @@ import (
 // Build produces the deployable artifact.
 //
 // Requires common.KeyCommit so the build is stamped; provides common.KeyImage for everything
-// that ships or runs it. Under dry run it still provides common.KeyImage, see
+// that ships or runs it. Labels the image with the full commit it was built
+// from (dockerkit.LabelRevision, read from common.KeyRevision) unless
+// OmitRevision is set. Under dry run it still provides common.KeyImage, see
 // pipeline.State.DryRun for why skipping the Set would be wrong.
 type Build struct {
 	// Repository is the image name without a tag; the commit supplies the tag.
@@ -51,6 +53,20 @@ type Build struct {
 	// Invariant: these override Options.Args on a name collision, a value
 	// resolved from state is by definition the more specific one.
 	ArgsFromState map[string]pipeline.Key
+	// OmitRevision leaves out the revision label Build adds by default.
+	//
+	// The label is on by default because the tag is the SHORT commit, which
+	// is unique only among today's commits; the full revision names the
+	// source for good, and is what CheckImage compares against before
+	// shipping an image built elsewhere. It does not tell a clean build from
+	// a dirty one of the same commit: git.ResolveCommit refusing a dirty tree
+	// does that, and a project label (the target a build was for) catches a
+	// rehearsal build that was allowed to be dirty.
+	//
+	// Set it when the pipeline has no common.KeyRevision to read (its commit
+	// comes from somewhere other than git.ResolveCommit), or to put a
+	// revision label in Options.Labels yourself.
+	OmitRevision bool
 	// Runner is where the build runs. Nil means this machine.
 	Runner runner.Runner
 }
@@ -65,14 +81,19 @@ func (b Build) Docs() pipeline.Docs {
 	}
 }
 
-// Requires is the commit plus every state key ArgsFromState reads, so the
-// pipeline can prove those producers run first.
+// Requires is the commit, the revision unless OmitRevision, plus every state
+// key ArgsFromState reads, so the pipeline can prove those producers run
+// first.
 func (b Build) Requires() []pipeline.Key {
 	keys := []pipeline.Key{common.KeyCommit}
 	// Deduped: two build args may legitimately read the same key, a version
 	// and a branch are often the same value, and a repeated Requires entry
 	// would show up in every plan as a doubled read for no reason.
 	seen := map[pipeline.Key]bool{common.KeyCommit: true}
+	if !b.OmitRevision {
+		keys = append(keys, common.KeyRevision)
+		seen[common.KeyRevision] = true
+	}
 	for _, name := range sortedArgNames(b.ArgsFromState) {
 		key := b.ArgsFromState[name]
 		if seen[key] {
@@ -124,6 +145,13 @@ func (b Build) Validate() error {
 		// something they never asked for.
 		return fmt.Errorf("Options.Tag is derived from Repository and the commit; leave it empty")
 	}
+	if _, set := b.Options.Labels[dockerkit.LabelRevision]; set && !b.OmitRevision {
+		// Refused rather than ranked: two values for one label means the
+		// caller believes something different from what the build would
+		// stamp, and either answer would surprise somebody.
+		return fmt.Errorf("Options.Labels sets %s, which Build adds from %s; set OmitRevision to label it yourself",
+			dockerkit.LabelRevision, common.KeyRevision)
+	}
 	return nil
 }
 
@@ -155,6 +183,19 @@ func (b Build) Run(ctx context.Context, s *pipeline.State) error {
 			args[name] = value
 		}
 		opts.Args = args
+	}
+	if !b.OmitRevision {
+		revision, err := pipeline.Get[string](s, common.KeyRevision)
+		if err != nil {
+			return fmt.Errorf("build-image: %w", err)
+		}
+		// Copied for the same reason as the args: Options is the caller's.
+		labels := make(map[string]string, len(opts.Labels)+1)
+		for k, v := range opts.Labels {
+			labels[k] = v
+		}
+		labels[dockerkit.LabelRevision] = revision
+		opts.Labels = labels
 	}
 	client, done := newClient(b.Runner, s)
 	defer done()
