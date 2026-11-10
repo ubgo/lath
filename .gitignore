@@ -23,7 +23,7 @@
 # The previous rule was /apps/*/cli, which stopped matching when the modules
 # were flattened — and a 6.7 MB binary was committed before anyone noticed.
 /cmd/*/lath
-# `go build .` at the repo root writes ./lath (the root module is the CLI).
+# `go build ./cmd/lath` run from the repo root writes ./lath here.
 /lath
 /kit/kit
 /pipeline/pipeline
