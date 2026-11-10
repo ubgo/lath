@@ -3,6 +3,7 @@ package git_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -156,7 +157,43 @@ func TestTheStepIsNamedAndDocumented(t *testing.T) {
 	// The keys are the other half of the plan: they are what Validate uses to
 	// prove ordering, so a wrong answer here is a pipeline that validates and
 	// then fails mid-run.
-	if len(step.Provides()) != 2 {
-		t.Errorf("Provides = %v, want the commit and the branch", step.Provides())
+	if want := []pipeline.Key{common.KeyCommit, common.KeyRevision, common.KeyBranch}; !slices.Equal(step.Provides(), want) {
+		t.Errorf("Provides = %v, want %v", step.Provides(), want)
+	}
+}
+
+// TestResolveCommitProvidesTheFullRevision pins KeyRevision: the full SHA a
+// revision label carries, read in the same step as the short one so the tag
+// and the label cannot describe different commits.
+func TestResolveCommitProvidesTheFullRevision(t *testing.T) {
+	t.Parallel()
+	const full = "a3f1c2d0f1e2d3c4b5a69788f9e0d1c2b3a49586"
+	f := &runner.Fake{Reply: []runner.Scripted{
+		{Match: "--short", Stdout: "a3f1c2d\n"},
+		{Match: "--abbrev-ref", Stdout: "main\n"},
+		{Match: "rev-parse HEAD", Stdout: full + "\n"},
+	}}
+	s := pipeline.NewState(pipeline.ModeExecute, nil)
+	if err := (git.ResolveCommit{Runner: f}).Run(context.Background(), s); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := pipeline.Get[string](s, common.KeyRevision); err != nil || got != full {
+		t.Errorf("KeyRevision = %q, %v; want %s", got, err, full)
+	}
+}
+
+// TestResolveCommitRefusesAMovedHead pins the agreement check: if a commit
+// lands between the two reads, the image would be tagged with one commit and
+// labelled with another.
+func TestResolveCommitRefusesAMovedHead(t *testing.T) {
+	t.Parallel()
+	f := &runner.Fake{Reply: []runner.Scripted{
+		{Match: "--short", Stdout: "a3f1c2d\n"},
+		{Match: "--abbrev-ref", Stdout: "main\n"},
+		{Match: "rev-parse HEAD", Stdout: "ffff0000aaaa1111bbbb2222cccc3333dddd4444\n"},
+	}}
+	err := git.ResolveCommit{Runner: f}.Run(context.Background(), pipeline.NewState(pipeline.ModeExecute, nil))
+	if err == nil || !strings.Contains(err.Error(), "HEAD moved") {
+		t.Errorf("err = %v; want a refusal naming the race", err)
 	}
 }

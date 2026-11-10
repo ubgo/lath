@@ -40,12 +40,14 @@ import (
 	"time"
 
 	dockerkit "github.com/ubgo/lath/kit/docker"
+	golangkit "github.com/ubgo/lath/kit/golang"
 	"github.com/ubgo/lath/kit/runner"
 	"github.com/ubgo/lath/kit/ssh"
 	"github.com/ubgo/lath/pipeline"
 	"github.com/ubgo/lath/steps/common"
 	"github.com/ubgo/lath/steps/docker"
 	"github.com/ubgo/lath/steps/git"
+	"github.com/ubgo/lath/steps/golang"
 )
 
 // Plan lists the steps for an environment without executing any of them.
@@ -195,6 +197,13 @@ const (
 	// points at a different repository after a rename.
 	imageRepo = "acme"
 
+	// binDir is where golang.Build writes the binaries and the Dockerfile
+	// copies them from. Cleared on every build.
+	binDir = ".docker/bin"
+
+	// exampleToolchain pins the example's build; see the golang.Build step.
+	exampleToolchain = "go1.24.0"
+
 	// appNetwork is the docker network the app shares with its database.
 	appNetwork = "acmenet"
 
@@ -302,8 +311,33 @@ func deployPipeline(env Environment) pipeline.Pipeline {
 				Environment: string(env),
 				Secrets:     []string{"DATABASE_URL", "NATS_CREDS"},
 			},
+			// The binaries are compiled HERE, not inside the image build: the
+			// host's Go build cache carries over between deploys, so an
+			// unchanged service rebuilds in seconds instead of minutes. The
+			// Dockerfile only copies binDir in.
+			golang.Build{
+				Options: golangkit.BuildOptions{
+					Packages: []string{"./cmd/acme"},
+					Output:   binDir,
+					Strip:    true,
+					// A real repository leaves this empty and pins its Go in
+					// go.work or go.mod (`go mod edit -toolchain=go1.N.P`).
+					// This example sits inside lath's own workspace, whose
+					// go.work names only a language version, so it says here.
+					Toolchain: exampleToolchain,
+				},
+				// Bound to state, so the binary reports the commit this
+				// pipeline resolved, and a missing producer fails Validate
+				// instead of shipping a binary that says "unknown".
+				VarsFromState: map[string]pipeline.Key{
+					"main.commit": common.KeyCommit,
+					"main.branch": common.KeyBranch,
+				},
+				BuildTimeVar: "main.built",
+			},
 			// Options carries everything docker build accepts, so a new library
-			// flag needs no change to this step or to this file.
+			// flag needs no change to this step or to this file. The image is
+			// labelled with the full revision by default (see OmitRevision).
 			docker.Build{
 				Repository: imageRepo,
 				Options: dockerkit.BuildOptions{

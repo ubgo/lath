@@ -1,6 +1,6 @@
 # kit, the library reference
 
-27 packages that any Go program can import, whether or not it uses lath. None of them imports `pipeline`; that is the line between a library and a pipeline adapter, and it is the only rule deciding what belongs here.
+29 packages that any Go program can import, whether or not it uses lath. None of them imports `pipeline`; that is the line between a library and a pipeline adapter, and it is the only rule deciding what belongs here.
 
 Every package follows the same conventions: `context.Context` first, `error` last, functional options or an options struct for configuration, and **one typed escape hatch** so a caller who needs something the package does not model is never stuck.
 
@@ -14,6 +14,8 @@ Every package follows the same conventions: `context.Context` first, `error` las
 | [`remotefs`](remotefs.md) | reading and writing files wherever a Runner points | POSIX `sh` |
 | [`docker`](docker.md) | building images, running containers, registries | `docker` |
 | [`git`](git.md) | reading a working tree, and writing to one: clone, commit, push, tag | `git` |
+| [`golang`](golang.md) | compiling Go binaries on the host with a pinned toolchain, for an image to copy | `go` |
+| [`argv`](argv.md) | a target's arguments: positionals, flags, and a refusal for a misspelt one |, |
 | [`secret`](secret.md) | credentials that cannot be printed by accident |, |
 | [`env`](env.md) | required environment variables, reported together |, |
 | [`fsx`](fsx.md) | atomic writes and copies |, |

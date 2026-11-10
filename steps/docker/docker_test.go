@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -107,7 +108,7 @@ func TestDryRunTouchesNothing(t *testing.T) {
 
 func TestDryRunStillProvidesItsKeys(t *testing.T) {
 	t.Parallel()
-	s := newState(pipeline.ModeDryRun, map[pipeline.Key]any{common.KeyCommit: "a3f1c2d"})
+	s := newState(pipeline.ModeDryRun, map[pipeline.Key]any{common.KeyCommit: "a3f1c2d", common.KeyRevision: testRevision})
 
 	if err := (docker.Build{Repository: "ghcr.io/acme/app", Options: dockerkit.BuildOptions{Context: "."}, Runner: &runner.Fake{}}).
 		Run(context.Background(), s); err != nil {
@@ -176,7 +177,7 @@ func TestBuildImageCommandLine(t *testing.T) {
 func TestImageIsTaggedByCommitNotByAMovingTag(t *testing.T) {
 	t.Parallel()
 	r := &runner.Fake{}
-	s := newState(pipeline.ModeExecute, map[pipeline.Key]any{common.KeyCommit: "deadbee"})
+	s := newState(pipeline.ModeExecute, map[pipeline.Key]any{common.KeyCommit: "deadbee", common.KeyRevision: "deadbee0000000000000000000000000000000000"})
 	if err := (docker.Build{Repository: "app", Options: dockerkit.BuildOptions{Context: "."}, Runner: r}).
 		Run(context.Background(), s); err != nil {
 		t.Fatal(err)
@@ -1306,5 +1307,67 @@ func TestARealRunStillFailsWhenTheHostCannotBeAsked(t *testing.T) {
 	}
 	if !errors.Is(err, missing) {
 		t.Errorf("err = %v; want the underlying failure to stay reachable", err)
+	}
+}
+
+// ── the revision label ───────────────────────────────────────────────────
+
+// TestBuildLabelsTheFullRevisionByDefault pins the default label. The tag is
+// the short commit and a dirty-tree build carries the same one; the full
+// revision in a label is what lets CheckImage tell them apart later.
+func TestBuildLabelsTheFullRevisionByDefault(t *testing.T) {
+	t.Parallel()
+	r := &runner.Fake{}
+	opts := dockerkit.BuildOptions{Context: ".", Labels: map[string]string{"team": "platform"}}
+	step := docker.Build{Repository: "app", Runner: r, Options: opts}
+	if !slices.Contains(step.Requires(), common.KeyRevision) {
+		t.Errorf("Requires = %v; Validate cannot prove the revision is produced", step.Requires())
+	}
+	if err := step.Run(context.Background(), deployState(pipeline.ModeExecute)); err != nil {
+		t.Fatal(err)
+	}
+	got := r.Commands()[0]
+	for _, want := range []string{"--label " + dockerkit.LabelRevision + "=" + testRevision, "--label team=platform"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in: %s", want, got)
+		}
+	}
+	// The caller's map is theirs: adding to it would leak the label into a
+	// second pipeline built from the same value.
+	if _, leaked := opts.Labels[dockerkit.LabelRevision]; leaked {
+		t.Error("Build wrote the revision into the caller's Labels")
+	}
+}
+
+// TestOmitRevisionDropsTheLabelAndTheRead pins the opt-out: a pipeline whose
+// commit does not come from git has no revision to read, and must still
+// validate.
+func TestOmitRevisionDropsTheLabelAndTheRead(t *testing.T) {
+	t.Parallel()
+	r := &runner.Fake{}
+	step := docker.Build{Repository: "app", Runner: r, OmitRevision: true, Options: dockerkit.BuildOptions{Context: "."}}
+	if slices.Contains(step.Requires(), common.KeyRevision) {
+		t.Errorf("Requires = %v; OmitRevision still reads the revision", step.Requires())
+	}
+	s := newState(pipeline.ModeExecute, map[pipeline.Key]any{common.KeyCommit: "a3f1c2d"})
+	if err := step.Run(context.Background(), s); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(r.Commands()[0], dockerkit.LabelRevision) {
+		t.Errorf("OmitRevision still labelled: %s", r.Commands()[0])
+	}
+}
+
+// TestARevisionLabelInOptionsNeedsOmitRevision pins the refusal: two values
+// for one label means the caller expects one the build would not stamp.
+func TestARevisionLabelInOptionsNeedsOmitRevision(t *testing.T) {
+	t.Parallel()
+	opts := dockerkit.BuildOptions{Context: ".", Labels: map[string]string{dockerkit.LabelRevision: "mine"}}
+	err := docker.Build{Repository: "app", Options: opts}.Validate()
+	if err == nil || !strings.Contains(err.Error(), "OmitRevision") {
+		t.Errorf("err = %v; want a refusal naming OmitRevision", err)
+	}
+	if err := (docker.Build{Repository: "app", Options: opts, OmitRevision: true}).Validate(); err != nil {
+		t.Errorf("with OmitRevision: %v", err)
 	}
 }

@@ -34,3 +34,6 @@ __pycache__/
 # BEGIN repolink (managed — do not edit)
 /docsi
 # END repolink
+
+# The example definition's build-binaries output.
+/example/.docker/bin/

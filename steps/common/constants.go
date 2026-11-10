@@ -20,6 +20,16 @@ const (
 	// Type: string. Provided by ResolveCommit.
 	KeyCommit pipeline.Key = "commit"
 
+	// KeyRevision is the FULL commit SHA of what is being deployed.
+	// Type: string. Provided by ResolveCommit.
+	//
+	// Separate from KeyCommit because the two have different jobs. The short
+	// form names what people read, an image tag, a container; it is unique
+	// only among today's commits. The full form is what a revision label
+	// carries, so it names one build for good. Docker's Build labels images
+	// with it, and CheckImage can compare against it.
+	KeyRevision pipeline.Key = "revision"
+
 	// KeyEnv is the target environment name (e.g. "prod"). Type: string.
 	// Provided by ResolveEnv.
 	KeyEnv pipeline.Key = "env"
@@ -54,4 +64,4 @@ const (
 
 // KeyValues is the canonical iteration order for every key this package
 // defines. Drives documentation generation and the key-coverage test.
-var KeyValues = []pipeline.Key{KeyCommit, KeyBranch, KeyEnv, KeyImage, KeyContainers, KeyRouted}
+var KeyValues = []pipeline.Key{KeyCommit, KeyRevision, KeyBranch, KeyEnv, KeyImage, KeyContainers, KeyRouted}

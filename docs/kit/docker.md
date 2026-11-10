@@ -68,6 +68,7 @@ func (c Client) Build(ctx context.Context, o BuildOptions) error
 func (c Client) Push(ctx context.Context, image string, extra ...string) error
 func (c Client) Pull(ctx context.Context, image string, extra ...string) error
 func (c Client) Images(ctx context.Context, repository string) ([]string, error)
+func (c Client) InspectImage(ctx context.Context, reference string) (ImageInfo, error)
 func (c Client) RemoveImage(ctx context.Context, reference string, extra ...string) error
 func (c Client) Prune(ctx context.Context, o PruneOptions) (string, error)
 
@@ -95,6 +96,18 @@ for _, tag := range old {
 
 **Which tags are "old" is not this package's decision.** Newest-by-creation is the obvious rule and the wrong one for a deploy: an image built and never shipped sorts above one that served for a week. A project that records what it actually deployed should sweep by that record instead.
 
+`InspectImage` reports what a local image is for and what it was labelled with, the two facts a deploy checks before shipping an image something else built. The tag says which commit an image *claims* to be; a laptop build carries the same `repository:commit` tag for another architecture, and only the platform and the labels tell them apart. It runs `docker image inspect` (the plain form also matches containers) and parses docker's JSON, because label values are arbitrary text and no template separator is safe. A reference docker does not have is `ErrNoSuchImage`.
+
+```go
+type ImageInfo struct {
+    OS           string            // "linux"
+    Architecture string            // "amd64"
+    Variant      string            // "v8" for arm64; empty when none
+    Labels       map[string]string // never nil
+}
+func (i ImageInfo) Platform() string   // "linux/arm64/v8", the --platform spelling
+```
+
 `Reference` and `TagOf` are inverses, and exist because the join was inlined in three places across two repositories, each one having to know the separator. `TagOf` splits from the **right**: a registry host may carry a port, so `registry:5000/acme/app:a3f1c2d` holds two colons and splitting from the left reports the port as the version. A reference whose only colon belongs to a port is untagged, and both functions agree on that.
 
 ### BuildOptions
@@ -110,6 +123,7 @@ type BuildOptions struct {
     Labels     map[string]string
     NoCache    bool
     Pull       bool
+    NoProvenance bool                // --provenance=false: one manifest, not an index
     Extra      []string              // anything not modelled
 }
 func (o BuildOptions) BuildArgs() []string     // the command line, for display or a test
@@ -121,12 +135,16 @@ err := docker.On(nil).Build(ctx, docker.BuildOptions{
     Context:    ".",
     Dockerfile: ".docker/Dockerfile.prod",
     Platforms:  []string{"linux/amd64"},
-    Labels:     map[string]string{"org.opencontainers.image.revision": commit},
+    Labels:     map[string]string{docker.LabelRevision: revision},
     Extra:      []string{"--secret", "id=npm,src=.npmrc", "--cache-from", "type=gha"},
 })
 ```
 
 ⚠️ **Never put a credential in `Args`.** Build arguments are recorded in the image's history and readable by anyone who can pull it. Use `--secret` via `Extra`.
+
+`NoProvenance` matters when an image travels between machines as a file. BuildKit attaches a provenance attestation by default under the containerd image store, which makes the image an **index**, and an index does not survive `docker save` / `docker load` whole: an image built in one CI job and pushed from the next can arrive with pieces missing. One manifest has nothing to lose on the way. It needs BuildKit (the default builder since Docker 23); the legacy builder rejects the flag.
+
+`LabelRevision` (`org.opencontainers.image.revision`) and `LabelSource` (`org.opencontainers.image.source`) are the OCI label keys every registry and scanner reads, spelt once. `steps/docker.Build` adds the revision label by default.
 
 `Platforms` switching to `buildx` matters because plain `docker build` cannot do multi-platform and fails with a message that does not say so. `Args` and `Labels` are emitted **sorted**, so two equivalent builds produce an identical command line and a log diff means a real change.
 

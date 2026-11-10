@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -840,5 +841,121 @@ func TestRemoveImageEscapeHatch(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(r.Commands(), " "), "--force") {
 		t.Errorf("the flag never reached docker: %v", r.Commands())
+	}
+}
+
+// TestNoProvenanceIsOneToken pins the rendering of NoProvenance. buildx reads
+// --provenance as taking a value, so "--provenance false" as two arguments
+// would make "false" the build context and build the wrong directory.
+func TestNoProvenanceIsOneToken(t *testing.T) {
+	t.Parallel()
+	args := docker.BuildOptions{Tag: "app:1", Context: ".", NoProvenance: true}.BuildArgs()
+	if !slices.Contains(args, "--provenance=false") {
+		t.Errorf("NoProvenance not rendered: %v", args)
+	}
+	if args[len(args)-1] != "." {
+		t.Errorf("the context is not last: %v", args)
+	}
+	off := docker.BuildOptions{Tag: "app:1", Context: "."}.BuildArgs()
+	for _, a := range off {
+		if strings.HasPrefix(a, "--provenance") {
+			t.Errorf("the zero value changed docker's default: %v", off)
+		}
+	}
+}
+
+// TestInspectImageReadsPlatformAndLabels pins the parse of docker's JSON. A
+// label value can hold any character, so a template with a separator would
+// split one value into two the first time a label contains it.
+func TestInspectImageReadsPlatformAndLabels(t *testing.T) {
+	t.Parallel()
+	r := &runner.Fake{Reply: []runner.Scripted{{Match: "image inspect", Stdout: `[{
+		"Os": "linux", "Architecture": "arm64", "Variant": "v8",
+		"Config": {"Labels": {"org.opencontainers.image.revision": "abc|def", "target": "prod"}}
+	}]`}}}
+	got, err := docker.On(r).InspectImage(context.Background(), "ghcr.io/acme/app:abc1234")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Platform() != "linux/arm64/v8" {
+		t.Errorf("Platform = %q", got.Platform())
+	}
+	if got.Labels[docker.LabelRevision] != "abc|def" || got.Labels["target"] != "prod" {
+		t.Errorf("Labels = %v", got.Labels)
+	}
+	// image inspect, never plain inspect, which would also match a container.
+	if !r.Ran("docker image inspect ghcr.io/acme/app:abc1234") {
+		t.Errorf("commands = %v", r.Commands())
+	}
+}
+
+// TestInspectImageWithoutLabelsGivesAnEmptyMap pins that a caller can look a
+// label up without a nil check: docker prints null for an image built with no
+// labels, which is exactly the image a check most needs to report on.
+func TestInspectImageWithoutLabelsGivesAnEmptyMap(t *testing.T) {
+	t.Parallel()
+	r := &runner.Fake{Reply: []runner.Scripted{{Match: "image inspect",
+		Stdout: `[{"Os": "linux", "Architecture": "amd64", "Config": {"Labels": null}}]`}}}
+	got, err := docker.On(r).InspectImage(context.Background(), "app:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Labels == nil {
+		t.Error("Labels is nil")
+	}
+	if got.Platform() != "linux/amd64" {
+		t.Errorf("Platform = %q; an absent variant must not leave a trailing slash", got.Platform())
+	}
+}
+
+// TestInspectImageClassifiesAMissingImage pins ErrNoSuchImage, so a caller
+// can say the image was never loaded instead of quoting docker's prose.
+func TestInspectImageClassifiesAMissingImage(t *testing.T) {
+	t.Parallel()
+	r := &runner.Fake{Reply: []runner.Scripted{{Match: "image inspect",
+		Stderr: "Error: No such image: app:1", Exit: 1}}}
+	_, err := docker.On(r).InspectImage(context.Background(), "app:1")
+	if !errors.Is(err, docker.ErrNoSuchImage) {
+		t.Errorf("err = %v; want ErrNoSuchImage", err)
+	}
+}
+
+// TestInspectImageAgainstRealDocker is the real-run half of the fake tests
+// above: a fake proves the parse of the JSON the test supplies, only docker
+// proves that is the JSON docker prints. Builds a label-only image FROM
+// scratch, which needs no registry, and removes it afterwards. Skipped where
+// no docker daemon answers.
+func TestInspectImageAgainstRealDocker(t *testing.T) {
+	if testing.Short() || exec.Command("docker", "info").Run() != nil {
+		t.Skip("no docker daemon")
+	}
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM scratch\nLABEL probe=yes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ref := "lath-inspect-probe:" + strings.ToLower(strings.ReplaceAll(t.Name(), "/", "-"))
+	client := docker.On(nil)
+	ctx := context.Background()
+	if err := client.Build(ctx, docker.BuildOptions{
+		Tag: ref, Context: dir, NoProvenance: true,
+		Labels: map[string]string{docker.LabelRevision: "a3f1c2d0f1e2"},
+	}); err != nil {
+		t.Skipf("docker cannot build a scratch image here: %v", err)
+	}
+	t.Cleanup(func() { _ = client.RemoveImage(context.Background(), ref) })
+
+	got, err := client.InspectImage(ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Labels["probe"] != "yes" || got.Labels[docker.LabelRevision] != "a3f1c2d0f1e2" {
+		t.Errorf("Labels = %v", got.Labels)
+	}
+	if got.OS == "" || got.Architecture == "" {
+		t.Errorf("platform not read: %+v", got)
+	}
+	if _, err := client.InspectImage(ctx, ref+"-absent"); !errors.Is(err, docker.ErrNoSuchImage) {
+		t.Errorf("missing image: err = %v; want ErrNoSuchImage", err)
 	}
 }

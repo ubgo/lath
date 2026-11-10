@@ -10,6 +10,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -255,6 +256,18 @@ type BuildOptions struct {
 	NoCache bool
 	// Pull refreshes the base image even when a local copy exists.
 	Pull bool
+	// NoProvenance builds one image manifest instead of an index that also
+	// carries a provenance attestation (--provenance=false).
+	//
+	// Why it is worth a name: BuildKit attaches the attestation by default
+	// under the containerd image store, which turns the image into an index.
+	// An index does not survive `docker save` / `docker load` whole, so an
+	// image built in one CI job and pushed from another can arrive with
+	// pieces missing. A single manifest has nothing to lose on the way.
+	//
+	// Needs BuildKit, the default builder since Docker 23; the legacy builder
+	// rejects the flag.
+	NoProvenance bool
 	// Extra passes raw flags through, inserted before the build context.
 	//
 	// Deliberate, and the same escape hatch ssh.Host carries. An exhaustive
@@ -298,11 +311,29 @@ func (o BuildOptions) BuildArgs() []string {
 	if o.Pull {
 		args = append(args, "--pull")
 	}
+	if o.NoProvenance {
+		args = append(args, flagNoProvenance)
+	}
 	args = append(args, o.Extra...)
 	// The context is always last: docker takes it as the sole positional
 	// argument, so anything appended after it becomes a second one.
 	return append(args, o.Context)
 }
+
+// flagNoProvenance is the rendering of BuildOptions.NoProvenance. One token,
+// because buildx reads --provenance as an option with a value and a bare
+// "false" after it would be taken for the build context.
+const flagNoProvenance = "--provenance=false"
+
+// OCI image labels with a meaning every registry and scanner agrees on.
+// WIRE FORMATS: the keys are defined by the OCI image spec, not chosen here.
+const (
+	// LabelRevision is the source revision the image was built from: the
+	// full commit, not the short one in the tag, so it cannot be ambiguous.
+	LabelRevision = "org.opencontainers.image.revision"
+	// LabelSource is the URL of the repository the image was built from.
+	LabelSource = "org.opencontainers.image.source"
+)
 
 // Build builds an image.
 func (c Client) Build(ctx context.Context, o BuildOptions) error {
@@ -352,6 +383,76 @@ func (c Client) Images(ctx context.Context, repository string) ([]string, error)
 		out = append(out, tag)
 	}
 	return out, nil
+}
+
+// ImageInfo is what InspectImage reports about one local image: the platform
+// it runs on and the labels it was built with.
+//
+// The fields a deploy checks before shipping an image somebody else built.
+// The tag says which commit an image claims to be; these say whether it is:
+// a laptop build carries the same repository:commit tag for another
+// architecture, and only the platform and the labels tell them apart.
+type ImageInfo struct {
+	// OS and Architecture are as docker reports them ("linux", "amd64").
+	OS           string
+	Architecture string
+	// Variant is the CPU variant ("v8" for arm64), empty when none.
+	Variant string
+	// Labels are the image's --label values. Never nil: an image with no
+	// labels reports an empty map, so a lookup needs no nil check.
+	Labels map[string]string
+}
+
+// Platform renders the image's platform the way docker's --platform flag
+// spells it: os/architecture, plus /variant when there is one.
+func (i ImageInfo) Platform() string {
+	p := i.OS + "/" + i.Architecture
+	if i.Variant != "" {
+		p += "/" + i.Variant
+	}
+	return p
+}
+
+// InspectImage reports the platform and labels of one image on this Client's
+// machine.
+//
+// `docker image inspect` rather than `docker inspect`: the plain form also
+// matches containers, and the question here is only ever about an image.
+// Parsed from docker's JSON rather than a --format template, because label
+// values are arbitrary text and no separator is safe to split them on.
+//
+// A reference docker does not have is ErrNoSuchImage, so a caller can say
+// "it was never loaded" instead of quoting docker's prose.
+func (c Client) InspectImage(ctx context.Context, reference string) (ImageInfo, error) {
+	r, err := c.run(ctx, Program+" "+cmdImage+" "+cmdInspect+" "+reference,
+		[]string{cmdImage, cmdInspect, reference})
+	if err != nil {
+		if strings.Contains(strings.ToLower(string(r.Stderr)), stderrNoSuchImage) {
+			return ImageInfo{}, fmt.Errorf("%w: %s", ErrNoSuchImage, reference)
+		}
+		return ImageInfo{}, err
+	}
+	// docker prints an array, one element per reference asked for.
+	var inspected []struct {
+		Os           string
+		Architecture string
+		Variant      string
+		Config       struct {
+			Labels map[string]string
+		}
+	}
+	if err := json.Unmarshal(r.Stdout, &inspected); err != nil {
+		return ImageInfo{}, fmt.Errorf("parsing docker image inspect for %s: %w", reference, err)
+	}
+	if len(inspected) != 1 {
+		return ImageInfo{}, fmt.Errorf("docker image inspect for %s: %d results, want 1", reference, len(inspected))
+	}
+	got := inspected[0]
+	labels := got.Config.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	return ImageInfo{OS: got.Os, Architecture: got.Architecture, Variant: got.Variant, Labels: labels}, nil
 }
 
 // untaggedTag is what docker prints for an image with no tag. Skipped by
