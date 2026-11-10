@@ -13,7 +13,7 @@ go.work             the ONLY file at the root — the root is not a module
 cmd/lath/           github.com/ubgo/lath/cmd/lath   the runner
 kit/                github.com/ubgo/lath/kit        libraries
 pipeline/           github.com/ubgo/lath/pipeline   the Step contract
-steps/              github.com/ubgo/lath/steps      common/ docker/ git/
+steps/              github.com/ubgo/lath/steps      common/ docker/ git/ golang/
 example/            a stand-in for a user's repository (its own module)
 docs/               design documents
 ```

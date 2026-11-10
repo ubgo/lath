@@ -112,6 +112,14 @@ func TestDryRunBuildsNothingButStillReadsTheToolchain(t *testing.T) {
 		t.Errorf("the dry run created the output folder: %v", err)
 	}
 
+	write(t, filepath.Join(root, "bin", ".gitkeep"), "")
+	if err := step(root).Run(context.Background(), state(pipeline.ModeDryRun)); err == nil || !strings.Contains(err.Error(), ".gitkeep") {
+		t.Errorf("dry run err = %v; want the refusal the real build gives for a folder it did not write", err)
+	}
+	if err := os.RemoveAll(filepath.Join(root, "bin")); err != nil {
+		t.Fatal(err)
+	}
+
 	write(t, filepath.Join(root, "go.mod"), "module example.com/svc\n\ngo 1.24\n")
 	err := step(root).Run(context.Background(), state(pipeline.ModeDryRun))
 	if !errors.Is(err, golangkit.ErrNoToolchain) {

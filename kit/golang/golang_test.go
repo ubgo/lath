@@ -57,7 +57,7 @@ func TestBuildEnvTurnsCgoOffAndPinsEverything(t *testing.T) {
 	t.Parallel()
 	got := golang.BuildOptions{}.BuildEnv("go1.26.4")
 	want := []string{"CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64", "GOTOOLCHAIN=go1.26.4",
-		"GOFLAGS=", "GOEXPERIMENT=", "GOAMD64=v1"}
+		"GOAMD64=v1"}
 	if !slices.Equal(got, want) {
 		t.Errorf("BuildEnv = %v, want %v", got, want)
 	}
@@ -381,5 +381,17 @@ func TestPinnedToolchainFollowsTheBuildsGOWORK(t *testing.T) {
 	}
 	if got, _ := (golang.BuildOptions{Toolchain: "go1.24.0"}).PinnedToolchain(root); got != "go1.24.0" {
 		t.Errorf("an explicit Toolchain = %q; want it unchanged", got)
+	}
+}
+
+// TestExtraValuesAreNotReadAsFlags pins that a value after a value-taking
+// flag is not mistaken for a flag: a tag named "o" is not -o.
+func TestExtraValuesAreNotReadAsFlags(t *testing.T) {
+	t.Parallel()
+	for _, extra := range [][]string{{"-tags", "o"}, {"-tags", "trimpath"}, {"-gcflags", "-o"}, {"-tags=o"}} {
+		o := golang.BuildOptions{Packages: []string{"./cmd/api"}, Output: "bin", Extra: extra}
+		if err := o.Validate(); err != nil {
+			t.Errorf("Extra %v: %v", extra, err)
+		}
 	}
 }

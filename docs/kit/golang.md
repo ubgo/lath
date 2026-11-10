@@ -16,6 +16,7 @@ Needs `go` on PATH. Runs on **this machine only**: the folder it clears and chec
 func Build(ctx context.Context, o BuildOptions, out io.Writer) error
 func ReadToolchain(dir string) (string, error)
 func (o BuildOptions) PinnedToolchain(dir string) (string, error)   // Toolchain, or ReadToolchain as the build sees GOWORK
+func (o BuildOptions) CheckOutput(dir string) error                 // would Build refuse to clear Output? reads only
 
 func (o BuildOptions) Validate() error
 func (o BuildOptions) BuildArgs() []string                 // the go command line, for display or a test
@@ -69,7 +70,7 @@ Each of these is a way a hand-written build script goes wrong.
 - **The output folder is cleared first.** A binary that failed to build cannot be replaced by a stale one from an earlier run, which the image would otherwise copy without complaint.
 - **Every binary is proven present** afterwards, by the name `go build -o dir/` gives it: the package's last path element, or the one before it for a `/v2` (and up) folder, plus `.exe` for Windows. `v0` and `v1` are ordinary names, as the go command treats them.
 - **The build is reproducible.** `CGO_ENABLED=0` (static binaries that run on a base image with no C library, and cross-compile with no C toolchain), `-trimpath` (no build machine paths in stack traces), `-buildvcs=false` (no stamp that depends on whether `.git` is in the checkout).
-- **The shell cannot change the target.** The CPU level is pinned to go's baseline (`GOAMD64=v1`, `GOARM64=v8.0`, `GOARM=7`) and `GOFLAGS` and `GOEXPERIMENT` are cleared: a laptop exporting `GOAMD64=v3` would otherwise ship a binary that dies with an illegal instruction on an older server. `Env` is the explicit way to choose otherwise; it is printed in the step's plan and log lines, so it must never carry a credential. Other architectures' levels (`GO386`, `GORISCV64`, `GOPPC64`) are not pinned and still come from the shell. Settings written with `go env -w` are not overridden by an empty variable; `go env -u` removes them.
+- **The shell cannot change the target.** The CPU level is pinned to go's baseline (`GOAMD64=v1`, `GOARM64=v8.0`, `GOARM=7`) : a laptop exporting `GOAMD64=v3` would otherwise ship a binary that dies with an illegal instruction on an older server. `GOFLAGS` and `GOEXPERIMENT` pass through on purpose: a CI that sets `GOFLAGS=-tags=prod` means it. `Env` is the explicit way to choose otherwise; it is printed in the step's plan and log lines, so it must never carry a credential. Other architectures' levels (`GO386`, `GORISCV64`, `GOPPC64`) are not pinned and still come from the shell.
 
 ## ReadToolchain
 
@@ -85,6 +86,8 @@ names no release; add one with `go mod edit -toolchain=go1.N.P`, or set Toolchai
 ## Gotchas
 
 ⚠️ **`Output` is deleted on every build.** That is the guarantee, so it is guarded three ways. It must be a relative folder inside `Dir`, never `Dir` itself, never inside `.git`, and never a folder that holds one of the `Packages` (`../bin`, `/tmp/bin`, `cmd` are refused). And an existing folder is deleted only if a previous build marked it (`MarkerFile`) or it holds nothing but files named like this build's binaries; a `bin/` with a tracked script in it is refused, before anything is deleted. A relative `GOWORK` is refused, as the go command refuses it.
+
+⚠️ **Adopting it on an existing folder.** A tracked `.gitkeep` or `.gitignore` inside `Output` is refused on the first build (it is not Build's). Remove it and ignore the folder from a parent `.gitignore`, or the next `ResolveCommit` sees a dirty tree. A dry run refuses the same folder.
 
 ⚠️ **`MarkerFile` lives inside `Output`.** A Dockerfile that copies the whole folder (`COPY .docker/bin/ /app/`) copies the marker too. Harmless, but copy the binaries by name, or add `.docker/bin/.golang-build` to `.dockerignore`.
 

@@ -2,7 +2,7 @@
 //
 // # These step packages are not privileged
 //
-// lath ships common, docker and git the same way anyone else would ship
+// lath ships common, docker, git and golang the same way anyone else would ship
 // theirs: a Go module that imports lath/pipeline and implements Step. There is
 // no registry to join, no interface only these can satisfy, and no build-time
 // knowledge of them anywhere in the runner.
@@ -41,12 +41,13 @@
 //	common  vendor-neutral steps, plus the shared state keys
 //	docker  steps over kit/docker
 //	git     steps over kit/git
+//	golang  steps over kit/golang
 //
 // # The rule for adding one
 //
 // If it imports pipeline it is a step and belongs in a step package. If it
 // does not, it is a library and belongs in kit, where any Go program can use
-// it without lath. The docker and git packages here are thin: every one of
+// it without lath. The docker, git and golang packages here are thin: every one of
 // them delegates to the kit package of the same name, which is usable on its
 // own.
 package steps

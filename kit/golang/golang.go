@@ -124,6 +124,15 @@ var symbolPattern = regexp.MustCompile(`^[^\s=]+\.[\pL_][\pL\pN_]*$`)
 // undo the guarantee the package documents.
 var ownedFlags = []string{"-o", "-ldflags", "-trimpath", "-buildvcs"}
 
+// valueFlags are the go build flags that take a value, so Validate can tell
+// "-tags o" (a tag named o) from "-o".
+var valueFlags = map[string]bool{
+	"-asmflags": true, "-buildmode": true, "-compiler": true, "-covermode": true,
+	"-coverpkg": true, "-gccgoflags": true, "-gcflags": true, "-installsuffix": true,
+	"-mod": true, "-modfile": true, "-overlay": true, "-p": true, "-pgo": true,
+	"-pkgdir": true, "-tags": true, "-toolexec": true,
+}
+
 // Validate checks the options without touching the filesystem.
 func (o BuildOptions) Validate() error {
 	if len(o.Packages) == 0 {
@@ -170,12 +179,21 @@ func (o BuildOptions) Validate() error {
 			return err
 		}
 	}
-	for _, f := range o.Extra {
-		name, _, _ := strings.Cut(strings.TrimLeft(f, "-"), "=")
+	for i := 0; i < len(o.Extra); i++ {
+		f := o.Extra[i]
+		if !strings.HasPrefix(f, "-") {
+			continue
+		}
+		name, _, hasValue := strings.Cut(strings.TrimLeft(f, "-"), "=")
 		for _, owned := range ownedFlags {
 			if "-"+name == owned {
 				return fmt.Errorf("golang: Extra may not carry %s; this package sets it (Output, Vars, or always)", owned)
 			}
+		}
+		if valueFlags["-"+name] && !hasValue {
+			// The next token is this flag's value ("-tags o", "-gcflags -o"),
+			// not a flag of its own.
+			i++
 		}
 	}
 	return nil
@@ -274,19 +292,17 @@ func (o BuildOptions) BuildArgs() []string {
 // target.
 //
 // The CPU level is pinned to go's own baseline for the architecture
-// (GOAMD64=v1, GOARM64=v8.0, GOARM=7) and GOFLAGS and GOEXPERIMENT are
-// cleared, because all of them are otherwise inherited from the shell: a
-// laptop exporting GOAMD64=v3 would ship a binary that dies with an illegal
-// instruction on an older server. Settings written with `go env -w` are not
-// overridden by an empty variable; `go env -u` removes them.
+// (GOAMD64=v1, GOARM64=v8.0, GOARM=7), because it is otherwise inherited from
+// the shell: a laptop exporting GOAMD64=v3 would ship a binary that dies with
+// an illegal instruction on an older server. GOFLAGS and GOEXPERIMENT are left
+// alone on purpose: a CI that sets GOFLAGS=-tags=prod means it, and clearing
+// it would build without the tag with nothing failing.
 func (o BuildOptions) BuildEnv(toolchain string) []string {
 	env := []string{
 		"CGO_ENABLED=0",
 		"GOOS=" + o.goos(),
 		"GOARCH=" + o.goarch(),
 		"GOTOOLCHAIN=" + toolchain,
-		"GOFLAGS=",
-		"GOEXPERIMENT=",
 	}
 	if level, ok := cpuBaseline[o.goarch()]; ok {
 		env = append(env, level)
@@ -350,7 +366,7 @@ func Build(ctx context.Context, o BuildOptions, out io.Writer) error {
 		return fmt.Errorf("golang: %s is not on PATH", Program)
 	}
 	target := filepath.Join(dir, o.Output)
-	if err := o.mayClear(target); err != nil {
+	if err := o.CheckOutput(dir); err != nil {
 		return err
 	}
 	if err := os.RemoveAll(target); err != nil {
@@ -389,6 +405,14 @@ func Build(ctx context.Context, o BuildOptions, out io.Writer) error {
 const MarkerFile = ".golang-build"
 
 const markerText = "Written by github.com/ubgo/lath/kit/golang. Everything in this folder is deleted on the next build.\n"
+
+// CheckOutput reports whether Build may clear Output under dir, reading only:
+// nil when the folder is absent or is Build's own, and the refusal Build
+// would give otherwise. Exported so a dry run can refuse what the real build
+// will refuse.
+func (o BuildOptions) CheckOutput(dir string) error {
+	return o.mayClear(filepath.Join(dir, o.Output))
+}
 
 // mayClear refuses to delete an existing folder Build did not create.
 //

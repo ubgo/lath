@@ -154,6 +154,10 @@ func (b Build) Run(ctx context.Context, s *pipeline.State) error {
 		return fmt.Errorf("build-binaries: %w", err)
 	}
 	opts.Toolchain = toolchain
+	// Also read-only, and refused the same way the real build would refuse it.
+	if err := opts.CheckOutput(opts.Dir); err != nil {
+		return fmt.Errorf("build-binaries: %w", err)
+	}
 	line := strings.Join(opts.BuildEnv(toolchain), " ") + " " +
 		proc.CommandLine(golangkit.Program, opts.BuildArgs()...)
 	if s.DryRun() {
